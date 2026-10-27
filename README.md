@@ -1,5 +1,17 @@
 # Schichtlohn-Check
 
+Live: [schichtlohn-check.vercel.app](https://schichtlohn-check.vercel.app)
+
+![Schichtlohn-Check checking the made-up sample payslip](docs/screenshot.png)
+
+## What I learned
+
+- Money needs its own rounding. `cents()` in `src/lib/calc.ts` rounds half up with a small epsilon so 2.175 becomes 2.18 like on a real payslip, not 2.17 from floating point.
+- Saved data outlives the code. `src/lib/storage.ts` stores a `schemaVersion` and runs step-by-step migrations, and corrupt data is backed up instead of wiped.
+- Rates belong in data, not code. Tariff, §3b and holiday values live in zod-validated JSON with a source, a date and a `verified` flag, and unconfirmed values show a badge in the UI.
+- Privacy can be tested. `tests/csp.test.ts` fails the build if any third-party origin appears in the CSP or the OCR config, and the leak guard runs before every test and build.
+- OCR is a fallback, not a source of truth. The importer uses the PDF text layer when it looks sane, only then renders and OCRs the page, and never marks OCR values as certain.
+
 Shift pay checker for Zeitarbeit (temporary agency) shift workers in chemical/pharma plants.
 Enter your shifts, see the gross pay they should produce (base wage, Branchenzuschlag, night/Sunday/
 holiday surcharges, Mehrarbeit, § 3b tax-free part), and compare it line by line with your payslip,

@@ -22,8 +22,9 @@ for (let i = 0; i < args.length; i++) {
 const SKIP_DIRS = new Set(["node_modules", "dist", ".git", ".vercel"]);
 // generated, not committed: the self-hosted OCR engine copied from node_modules
 const SKIP_PATHS = new Set([path.normalize("public/ocr")]);
-// synthetic test fixtures (made-up person "Max Beispiel"), allowed despite their file type
-const ALLOW_FILES = new Set(["tests/fixtures/scan-zvoove.png"].map((p) => path.normalize(p)));
+// synthetic test fixtures (made-up person "Max Beispiel") and the README screenshot of the
+// built-in sample, allowed despite their file type
+const ALLOW_FILES = new Set(["tests/fixtures/scan-zvoove.png", "docs/screenshot.png"].map((p) => path.normalize(p)));
 const BANNED_FILE = [
   /logo/i,
   /cross/i,
