@@ -88,6 +88,13 @@ describe("sample payslip PDF (made up: Max Beispiel, Musterzeit Personal GmbH)",
     expect(Math.round(free.reduce((a, k) => a + p.lines[k]!.amount!, 0) * 100) / 100).toBe(527.04);
   });
 
+  it("all of the sample's checks add up, including net + tax-free items vs. payout", async () => {
+    const p = (await importPayslipPdf(fixture("sample-payslip.pdf"), "s.pdf", nodePdfJs)).parsed;
+    expect(p.checks.length).toBeGreaterThanOrEqual(3);
+    expect(p.checks.filter((c) => !c.ok)).toEqual([]);
+    expect(p.checks.find((c) => c.id === "payout")?.label).toMatch(/tax-free/);
+  });
+
   it("preview -> apply fills the payslip-compare fields; unselected and edited values are respected", async () => {
     const p = (await importPayslipPdf(fixture("sample-payslip.pdf"), "s.pdf", nodePdfJs)).parsed;
     const fields = buildPreview(p);

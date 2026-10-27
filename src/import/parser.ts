@@ -1183,8 +1183,10 @@ function parseWith(all: TextLine[], labelMap: LabelMap, useHeader: boolean): Par
     check("net", "Table rows − statutory deductions vs. net", r2(sum((r) => r.amount, grossRows) - deductions), S.netto);
   if (S.netto && S.auszahlung) {
     const adj = S.nettoAbzuege ? Math.abs(S.nettoAbzuege.value) : 0;
-    const expected = [r2(S.netto.value - adj), r2(S.netto.value + adj)].sort((a, b) => Math.abs(a - S.auszahlung!.value) - Math.abs(b - S.auszahlung!.value))[0]!;
-    check("payout", S.nettoAbzuege ? "Net ± other net items vs. payout" : "Net vs. payout (no other net items found)", expected, S.auszahlung);
+    // "+ steuerfreie Bezüge" between net and payout: the tax-free part is added after the net
+    const plusTaxFree = S.steuerfrei && all.some((l) => /^(?:\+|zzgl\.?)\s*steuerfreie?\s+(?:bezüge|anteile?|zuschläge)/i.test(l.text)) ? S.steuerfrei.value : 0;
+    const expected = [r2(S.netto.value - adj + plusTaxFree), r2(S.netto.value + adj + plusTaxFree)].sort((a, b) => Math.abs(a - S.auszahlung!.value) - Math.abs(b - S.auszahlung!.value))[0]!;
+    check("payout", S.nettoAbzuege ? "Net ± other net items vs. payout" : plusTaxFree ? "Net + tax-free items vs. payout" : "Net vs. payout (no other net items found)", expected, S.auszahlung);
   }
   out.quality = assessQuality(out);
   return out;
