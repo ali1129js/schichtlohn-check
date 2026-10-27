@@ -4,7 +4,11 @@ import type { RuleValue } from "@/rules/defaults";
 export function RuleBadge({ rule, compact }: { rule: RuleValue<unknown>; compact?: boolean }) {
   return (
     <span className="rule-badges">
-      {rule.verified ? (
+      {rule.status === "likely" ? (
+        <span className="badge badge--blue" title={`Likely, not proven. ${rule.note ?? ""}`}>
+          likely
+        </span>
+      ) : rule.verified ? (
         <span className="badge badge--green" title={`Verified ${rule.asOf}: ${rule.source}`}>
           verified
         </span>
@@ -18,7 +22,7 @@ export function RuleBadge({ rule, compact }: { rule: RuleValue<unknown>; compact
           maximum
         </span>
       )}
-      {!compact && (
+      {!compact && rule.sourceUrl && (
         <a className="small" href={rule.sourceUrl} target="_blank" rel="noreferrer noopener">
           source
         </a>

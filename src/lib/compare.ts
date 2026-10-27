@@ -1,11 +1,11 @@
-import { cents, type Component, type MonthResult } from "./calc";
+import { cents, rates, type Component, type MonthResult } from "./calc";
 import { regionLabel } from "./holidays";
 import { PAYSLIP_LINE_LABEL, type Payslip, type PayslipLine, type Settings } from "./model";
 
 export type CompareStatus = "ok" | "diff" | "no-payslip" | "info";
 
 export interface CompareRow {
-  key: PayslipLine | "gesamtbrutto" | "steuerfrei";
+  key: PayslipLine | "gesamtbrutto" | "steuerfrei" | `other:${number}`;
   label: string;
   expected: number | null;
   actual: number | null;
@@ -40,7 +40,10 @@ function hintsFor(key: Component["key"], c: Component, p: Payslip, r: MonthResul
       h.push(
         "The BZ step depends on completed months at the same customer; a step change mid-month or interruptions over 3 months change it.",
         "The BZ can be capped at the pay of a comparable customer employee minus 10 % (TV BZ Chemie § 2 (5), unconfirmed).",
-        "It is paid on the base hours: if the base hours differ, the BZ differs too."
+        st.bzHours === "paid"
+          ? "It is paid on all paid hours (base + Urlaub + Freizeitauszahlung hours from the payslip): if those hours differ, the BZ differs too."
+          : "It is paid on the base hours: if the base hours differ, the BZ differs too.",
+        st.bzMode === "eur" ? "You entered the BZ in €/h: check it against the Satz of the Branchenzuschlag line." : "Tip: you can enter the BZ in €/h exactly as on your payslip (Settings)."
       );
       break;
     case "mehrarbeit":
@@ -54,7 +57,9 @@ function hintsFor(key: Component["key"], c: Component, p: Payslip, r: MonthResul
       h.push(
         `The app counts night work ${st.nightStart}-${st.nightEnd}. The customer company may use another window (e.g. 20:00 or 22:00-06:00).`,
         "The tariff rate is a maximum; the customer company's rule may be lower. Also check base vs base + BZ.",
-        st.combine === "highest" ? "On Sundays/holidays only the highest surcharge is paid (MTV § 6.4), so night hours there are not counted as night." : ""
+        st.combine === "highest"
+          ? "On Sundays/holidays only the highest surcharge is paid (MTV § 6.4), so night hours there are not counted as night."
+          : "Night and Sunday/holiday surcharges are both paid for overlapping hours (likely, from a real payslip). If your payslip pays only one, set 'highest only' in Settings."
       );
       break;
     case "sunday":
@@ -96,25 +101,48 @@ export function comparePayslip(r: MonthResult, p: Payslip, st: Settings): Compar
     const c = r.components.find((x) => x.key === ck)!;
     rows.push(row(pk, PAYSLIP_LINE_LABEL[pk], c.amount, p.lines[pk]?.amount, () => hintsFor(ck, c, p, r, st)));
   }
-  // lines the app does not calculate: only check the payslip's own arithmetic (hours x rate)
+  // lines the app does not calculate: info only, never reported as a difference
+  const infoHints: Record<"tarifurlaub" | "freizeit" | "fahrgeld", (l: NonNullable<Payslip["lines"]["freizeit"]>) => string[]> = {
+    tarifurlaub: () => ["Not calculated by the app (taken from the payslip). Its hours count towards the overtime threshold" + (st.bzHours === "paid" ? " and the Branchenzuschlag hours." : ".")],
+    freizeit: (l) => {
+      const h = ["Not calculated by the app (taken from the payslip)."];
+      if (l.rate !== undefined) {
+        const base = st.baseRate;
+        const withBz = rates(st).withBz;
+        if (Math.abs(l.rate - base) < 0.005) h.push("Paid at the base rate; the Branchenzuschlag for these hours belongs in the BZ line.");
+        else if (Math.abs(l.rate - withBz) < 0.005) h.push("Paid at base + Branchenzuschlag.");
+        else h.push(`The payslip pays ${fmt(l.rate)} €/h; your base rate is ${fmt(base)} €/h.`);
+      }
+      return h;
+    },
+    fahrgeld: () => ["Not calculated by the app (taken from the payslip). The quantity is not hours (km, days or a flat amount)."],
+  };
   for (const pk of ["tarifurlaub", "freizeit", "fahrgeld"] as const) {
     const l = p.lines[pk];
-    const base = row(pk, PAYSLIP_LINE_LABEL[pk], null, l?.amount, () => ["Not calculated by the app (taken from the payslip)."]);
+    const base = row(pk, PAYSLIP_LINE_LABEL[pk], null, l?.amount, () => (l ? infoHints[pk](l) : []));
     if (l?.amount !== undefined && l.hours !== undefined && l.rate !== undefined) {
       const prod = cents(l.hours * l.rate);
-      if (Math.abs(prod - l.amount) > tol) {
-        base.status = "diff";
-        base.expected = prod;
-        base.diff = cents(l.amount - prod);
-        base.hints = [`On the payslip ${fmt(l.hours)} × ${fmt(l.rate)} = ${fmt(prod)}, but the line shows ${fmt(l.amount)}. Ask payroll.`];
-      }
+      if (Math.abs(prod - l.amount) > tol) base.hints.push(`On the payslip ${fmt(l.hours)} × ${fmt(l.rate)} = ${fmt(prod)}, but the line shows ${fmt(l.amount)}.`);
     }
     rows.push(base);
   }
-  const extras = (["tarifurlaub", "freizeit", "fahrgeld"] as const).reduce((a, k) => a + (p.lines[k]?.amount ?? 0), 0);
+  const others = (p.other ?? []).filter((o) => o.category !== "deduction" && o.amount !== undefined);
+  others.forEach((o, i) =>
+    rows.push({
+      key: `other:${i}`,
+      label: o.label,
+      expected: null,
+      actual: o.amount ?? null,
+      diff: null,
+      status: "info",
+      hints: [o.category === "other" ? "Not recognised; taken from the payslip as it is." : "Not calculated by the app (taken from the payslip)."],
+    })
+  );
+  const extras =
+    (["tarifurlaub", "freizeit", "fahrgeld"] as const).reduce((a, k) => a + (p.lines[k]?.amount ?? 0), 0) + others.reduce((a, o) => a + (o.amount ?? 0), 0);
   rows.push(
     row("gesamtbrutto", "Gesamtbrutto (total gross)", cents(r.total + extras), p.gesamtbrutto, () => [
-      "Expected = the app's total plus Tarifurlaub, Freizeitauszahlung and Fahrgeld as entered from the payslip.",
+      "Expected = the app's total plus the info-only lines (Urlaub, Freizeitauszahlung, Fahrgeld and other payslip lines) as taken from the payslip.",
       "Look at the lines above that differ; the payslip may also contain items the app does not know (bonuses, back pay, corrections from earlier months).",
     ])
   );

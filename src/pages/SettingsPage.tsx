@@ -1,3 +1,4 @@
+import { OCR_CONFIG } from "@/ocr/config";
 import type { ReactNode } from "react";
 import { RuleBadge } from "@/components/RuleBadge";
 import { rates } from "@/lib/calc";
@@ -8,7 +9,10 @@ import {
   BASE_HOURS_MODE,
   BZ_CHEMIE_RULE,
   bzPercentFor,
+  AZK_PAYOUT_BASE,
+  BZ_HOURS,
   COMBINE_RULE,
+  SURCHARGE_ROUNDING,
   ENTGELTGRUPPEN,
   ETV_RULE,
   etvRate,
@@ -109,22 +113,46 @@ export function SettingsPage() {
         >
           <input id="bzm" type="number" min="0" max="240" step="1" value={st.bzMonths} onChange={(e) => update({ bzMonths: Math.round(num(e.target.value)) })} />
         </Field>
-        <Field label="Branchenzuschlag (%)" htmlFor="bzp" hint={`= ${num2(rt.bz)} €/h → ${num2(rt.withBz)} €/h with base.`}>
-          <div className="row">
-            <input
-              id="bzp"
-              type="number"
-              min="0"
-              max="100"
-              step="0.1"
-              value={st.bzPct}
-              disabled={st.bzAuto && st.eg !== "custom"}
-              onChange={(e) => update({ bzPct: num(e.target.value) })}
-            />
-            <label className="inline-label">
-              <input type="checkbox" checked={st.bzAuto} onChange={(e) => update({ bzAuto: e.target.checked })} /> from table
-            </label>
-          </div>
+        <Field label="Branchenzuschlag entered as" htmlFor="bzmode" hint="Enter the % or the €/h exactly as on your payslip (Satz of the Branchenzuschlag line).">
+          <select id="bzmode" value={st.bzMode} onChange={(e) => update({ bzMode: e.target.value as Settings["bzMode"], bzEur: st.bzEur || rt.bz })}>
+            <option value="pct">percent of the base rate</option>
+            <option value="eur">€ per hour</option>
+          </select>
+        </Field>
+        {st.bzMode === "pct" ? (
+          <Field label="Branchenzuschlag (%)" htmlFor="bzp" hint={`= ${num2(rt.bz)} €/h → ${num2(rt.withBz)} €/h with base.`}>
+            <div className="row">
+              <input
+                id="bzp"
+                type="number"
+                min="0"
+                max="100"
+                step="0.1"
+                value={st.bzPct}
+                disabled={st.bzAuto && st.eg !== "custom"}
+                onChange={(e) => update({ bzPct: num(e.target.value) })}
+              />
+              <label className="inline-label">
+                <input type="checkbox" checked={st.bzAuto} onChange={(e) => update({ bzAuto: e.target.checked })} /> from table
+              </label>
+            </div>
+          </Field>
+        ) : (
+          <Field label="Branchenzuschlag (€/h)" htmlFor="bze" hint={`= ${num2(rt.bzPct)} % of the base rate → ${num2(rt.withBz)} €/h with base.`}>
+            <input id="bze" type="number" min="0" max="100" step="0.01" inputMode="decimal" value={st.bzEur} onChange={(e) => update({ bzEur: num(e.target.value) })} />
+          </Field>
+        )}
+        <Field label="Branchenzuschlag is paid on" htmlFor="bzh" rule={BZ_HOURS}>
+          <select id="bzh" value={st.bzHours} onChange={(e) => update({ bzHours: e.target.value as Settings["bzHours"] })}>
+            <option value="paid">all paid hours (worked + Urlaub + AZK payout)</option>
+            <option value="base">base hours only</option>
+          </select>
+        </Field>
+        <Field label="Freizeitauszahlung (AZK payout) is paid at" htmlFor="azp" rule={AZK_PAYOUT_BASE}>
+          <select id="azp" value={st.azkPayoutBase} onChange={(e) => update({ azkPayoutBase: e.target.value as Settings["azkPayoutBase"] })}>
+            <option value="base">the base rate (BZ in the BZ line)</option>
+            <option value="base+bz">base + Branchenzuschlag</option>
+          </select>
         </Field>
         <Field label="Weekly hours (contract)" htmlFor="wh" rule={WEEKLY_HOURS}>
           <input id="wh" type="number" min="1" max="60" step="0.5" value={st.weeklyHours} onChange={(e) => update({ weeklyHours: num(e.target.value) })} />
@@ -185,6 +213,12 @@ export function SettingsPage() {
             <option value="base+bz">base + Branchenzuschlag</option>
           </select>
         </Field>
+        <Field label="Rounding" htmlFor="sr" rule={SURCHARGE_ROUNDING}>
+          <select id="sr" value={st.surchargeRounding} onChange={(e) => update({ surchargeRounding: e.target.value as Settings["surchargeRounding"] })}>
+            <option value="amount">round the amount only (hours × % × rate)</option>
+            <option value="rate">round the €/h first, then × hours</option>
+          </select>
+        </Field>
       </section>
 
       <section className="card stack">
@@ -213,6 +247,31 @@ export function SettingsPage() {
             Reset settings to defaults
           </button>
         </div>
+      </section>
+      <section className="card stack" aria-label="Text recognition">
+        <h3>Scans and photos (text recognition)</h3>
+        <p className="small muted">
+          PDFs with a text layer are read directly. Scans and photos are read on this device with {OCR_CONFIG.engines.tesseract.name} (about{" "}
+          {OCR_CONFIG.engines.tesseract.downloadMB.toLocaleString("de-DE")} MB from this site on first use). Nothing is uploaded.
+        </p>
+        <label className="inline-label">
+          <input
+            type="checkbox"
+            checked={st.ocrVlm}
+            onChange={(e) => {
+              const on = e.target.checked;
+              if (on && !window.confirm(`Experimental: ${OCR_CONFIG.engines.graniteDocling.name}. It needs WebGPU and downloads about ${OCR_CONFIG.engines.graniteDocling.downloadMB} MB once (kept by the browser). Your payslip still never leaves this device. Switch it on?`)) return;
+              update({ ocrVlm: on });
+            }}
+          />{" "}
+          <span>
+            Use the document AI model first <span className="badge badge--amber">experimental</span> (about {OCR_CONFIG.engines.graniteDocling.downloadMB} MB, needs WebGPU)
+          </span>
+        </label>
+        <p className="small muted">
+          Preview: the model run is not finished in this version, so the app falls back to {OCR_CONFIG.engines.tesseract.name} and nothing is downloaded yet. The import always shows which engine read the
+          payslip.
+        </p>
       </section>
     </>
   );

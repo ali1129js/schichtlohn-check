@@ -1,6 +1,45 @@
-import { AppDataSchema, emptyData, type AppData } from "./model";
+import { AppDataSchema, defaultSettings, emptyData, SCHEMA_VERSION, type AppData } from "./model";
 
+/** Storage key. It stays the same across app versions; the data carries its own schemaVersion. */
 export const DATA_KEY = "schichtlohn.data.v1";
+
+// ---- migrations: saved data from older app versions is upgraded, never wiped
+
+type Json = Record<string, unknown>;
+/** MIGRATIONS[n] turns schema version n into n + 1. Never drop shifts, settings or label mappings. */
+export const MIGRATIONS: Record<number, (d: Json) => Json> = {
+  // 1 -> 2: `version` renamed to `schemaVersion`, user label mappings added, settings that did
+  // not exist yet get their defaults (the user's own values always win)
+  1: ({ version: _v, ...rest }) => ({
+    ...rest,
+    schemaVersion: 2,
+    settings: { ...defaultSettings(), ...(rest.settings && typeof rest.settings === "object" ? rest.settings : {}) },
+    labelMap: rest.labelMap ?? {},
+  }),
+};
+
+export function schemaVersionOf(d: unknown): number | null {
+  if (!d || typeof d !== "object") return null;
+  const o = d as Json;
+  const v = o.schemaVersion ?? o.version;
+  return typeof v === "number" && Number.isInteger(v) && v >= 1 ? v : null;
+}
+
+export type MigrateResult = { ok: true; data: unknown; from: number } | { ok: false; reason: string; from: number | null };
+
+/** Bring saved JSON up to SCHEMA_VERSION. Data from a NEWER app version is not touched. */
+export function migrate(d: unknown): MigrateResult {
+  const from = schemaVersionOf(d);
+  if (from === null) return { ok: false, reason: "no schema version", from };
+  if (from > SCHEMA_VERSION) return { ok: false, reason: `saved by a newer app version (data version ${from}, this app ${SCHEMA_VERSION})`, from };
+  let cur = d as Json;
+  for (let v = from; v < SCHEMA_VERSION; v++) {
+    const step = MIGRATIONS[v];
+    if (!step) return { ok: false, reason: `no migration from version ${v}`, from };
+    cur = step(cur);
+  }
+  return { ok: true, data: cur, from };
+}
 
 export type KV = Pick<Storage, "getItem" | "setItem">;
 
@@ -22,9 +61,17 @@ export function loadData(kv: KV, now = Date.now()): LoadResult {
   if (raw === null) return { ok: true, data: emptyData() };
   let reason: string;
   try {
-    const parsed = AppDataSchema.safeParse(JSON.parse(raw));
-    if (parsed.success) return { ok: true, data: parsed.data };
-    reason = describe(parsed.error);
+    const m = migrate(JSON.parse(raw));
+    if (m.ok) {
+      const parsed = AppDataSchema.safeParse(m.data);
+      if (parsed.success) {
+        // keep the old copy until the user has worked with the upgraded data
+        const pre = `${DATA_KEY}.pre-v${SCHEMA_VERSION}`;
+        if (m.from < SCHEMA_VERSION && kv.getItem(pre) === null) kv.setItem(pre, raw);
+        return { ok: true, data: parsed.data };
+      }
+      reason = describe(parsed.error);
+    } else reason = m.reason;
   } catch (e) {
     reason = e instanceof Error ? e.message : "unreadable JSON";
   }
@@ -59,7 +106,9 @@ export function importJson(text: string): ImportResult {
     json && typeof json === "object" && "data" in json && (json as { app?: unknown }).app === EXPORT_APP
       ? (json as { data: unknown }).data
       : json;
-  const r = AppDataSchema.safeParse(candidate);
+  const m = migrate(candidate);
+  if (!m.ok) return { ok: false, error: `The file does not look like a Schichtlohn-Check backup (${m.reason}).` };
+  const r = AppDataSchema.safeParse(m.data);
   return r.success ? { ok: true, data: r.data } : { ok: false, error: `The file does not look like a Schichtlohn-Check backup (${describe(r.error)}).` };
 }
 

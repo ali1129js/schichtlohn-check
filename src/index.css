@@ -384,6 +384,8 @@ td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; white-sp
 .badge--grey { background: var(--surface-2); color: var(--muted); }
 .alert--info { border-color: var(--info-border); background: var(--info-soft); color: var(--text); }
 .alert--ok { border-color: var(--ok-border); background: var(--ok-soft); color: var(--text); }
+.alert--warn { border-color: var(--amber); background: var(--warn-bg); color: var(--text); }
+.ocr-progress { display: block; width: 100%; height: 10px; margin-top: 4px; accent-color: var(--amber); }
 .list { margin: 8px 0 0; padding-left: 18px; }
 .list li + li { margin-top: 4px; }
 .pre { white-space: pre-wrap; background: var(--surface-2); border-radius: 8px; padding: 10px; max-height: 320px; overflow: auto; }

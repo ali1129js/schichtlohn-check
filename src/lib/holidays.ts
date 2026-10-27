@@ -1,3 +1,5 @@
+import { z } from "zod";
+import holidaysJson from "@/rules/holidays.json";
 import { addDays, isoDate, type ISODate } from "./time";
 
 /**
@@ -30,6 +32,32 @@ export const regionLabel = (r: Region) => REGIONS.find((x) => x.id === r)?.label
 export const HOLIDAY_NOTE =
   "Statewide holidays only. Local ones (Augsburger Friedensfest, Fronleichnam in parts of Sachsen/Thüringen, Mariä Himmelfahrt in Catholic communities of Bayern) are not included.";
 
+const HolidayEntry = z
+  .object({
+    name: z.string().min(1),
+    fixed: z.string().regex(/^(0[1-9]|1[0-2])-(0[1-9]|[12]\d|3[01])$/).optional(),
+    easter: z.number().int().min(-60).max(80).optional(),
+    special: z.literal("bussUndBettag").optional(),
+    regions: z.union([z.literal("all"), z.array(z.enum(REGION_IDS)).min(1)]),
+    fromYear: z.number().int().optional(),
+    toYear: z.number().int().optional(),
+    years: z.array(z.number().int()).optional(),
+    note: z.string().optional(),
+  })
+  .refine((h) => [h.fixed, h.easter, h.special].filter((x) => x !== undefined).length === 1, "needs exactly one of fixed, easter, special");
+const HolidaysSchema = z.object({
+  schemaVersion: z.literal(1),
+  asOf: z.string(),
+  source: z.string(),
+  verified: z.boolean(),
+  note: z.string().optional(),
+  holidays: z.array(HolidayEntry).min(1),
+});
+const parsedHolidays = HolidaysSchema.safeParse(holidaysJson);
+if (!parsedHolidays.success) throw new Error(`Invalid rule file src/rules/holidays.json: ${parsedHolidays.error.issues[0]?.path.join(".")}: ${parsedHolidays.error.issues[0]?.message}`);
+/** Holiday rules (data file src/rules/holidays.json). */
+export const HOLIDAY_DATA = parsedHolidays.data;
+
 /** Easter Sunday (Gregorian), anonymous Gregorian algorithm (Meeus/Jones/Butcher). */
 export function easterSunday(y: number): ISODate {
   const a = y % 19;
@@ -54,8 +82,6 @@ export interface Holiday {
   name: string;
 }
 
-const inR = (r: Region, ...list: Region[]) => list.includes(r);
-
 /** Buß- und Bettag: the Wednesday before 23 November. */
 export function bussUndBettag(y: number): ISODate {
   const nov22 = new Date(Date.UTC(y, 10, 22));
@@ -66,35 +92,15 @@ export function bussUndBettag(y: number): ISODate {
 /** Statutory statewide public holidays of a German state in year y. */
 export function holidays(y: number, region: Region): Holiday[] {
   const e = easterSunday(y);
-  const r = region;
-  const list: Holiday[] = [
-    { date: isoDate(y, 1, 1), name: "Neujahr" },
-    { date: addDays(e, -2), name: "Karfreitag" },
-    { date: addDays(e, 1), name: "Ostermontag" },
-    { date: isoDate(y, 5, 1), name: "Tag der Arbeit" },
-    { date: addDays(e, 39), name: "Christi Himmelfahrt" },
-    { date: addDays(e, 50), name: "Pfingstmontag" },
-    { date: isoDate(y, 10, 3), name: "Tag der Deutschen Einheit" },
-    { date: isoDate(y, 12, 25), name: "1. Weihnachtstag" },
-    { date: isoDate(y, 12, 26), name: "2. Weihnachtstag" },
-  ];
-  const add = (date: ISODate, name: string) => list.push({ date, name });
-  if (inR(r, "BW", "BY", "ST")) add(isoDate(y, 1, 6), "Heilige Drei Könige");
-  if ((r === "BE" && y >= 2019) || (r === "MV" && y >= 2023)) add(isoDate(y, 3, 8), "Internationaler Frauentag");
-  // Only Brandenburg lists them as statutory holidays (Hessen: "die Sonntage", not separately).
-  // For § 3b tax purposes they count everywhere, see s3bDayPct in calc.ts.
-  if (r === "BB") {
-    add(e, "Ostersonntag");
-    add(addDays(e, 49), "Pfingstsonntag");
+  const list: Holiday[] = [];
+  for (const h of HOLIDAY_DATA.holidays) {
+    if (h.regions !== "all" && !h.regions.includes(region)) continue;
+    if (h.fromYear !== undefined && y < h.fromYear) continue;
+    if (h.toYear !== undefined && y > h.toYear) continue;
+    if (h.years && !h.years.includes(y)) continue;
+    const date = h.fixed ? isoDate(y, +h.fixed.slice(0, 2), +h.fixed.slice(3)) : h.easter !== undefined ? addDays(e, h.easter) : bussUndBettag(y);
+    list.push({ date, name: h.name });
   }
-  if (r === "BE" && (y === 2020 || y === 2025)) add(isoDate(y, 5, 8), "Tag der Befreiung");
-  if (inR(r, "BW", "BY", "HE", "NW", "RP", "SL")) add(addDays(e, 60), "Fronleichnam");
-  if (r === "SL") add(isoDate(y, 8, 15), "Mariä Himmelfahrt");
-  if (r === "TH" && y >= 2019) add(isoDate(y, 9, 20), "Weltkindertag");
-  const reformation = inR(r, "BB", "MV", "SN", "ST", "TH") || (inR(r, "HB", "HH", "NI", "SH") && y >= 2018) || y === 2017;
-  if (reformation) add(isoDate(y, 10, 31), y === 2017 ? "Reformationstag (500 Jahre)" : "Reformationstag");
-  if (inR(r, "BW", "BY", "NW", "RP", "SL")) add(isoDate(y, 11, 1), "Allerheiligen");
-  if (r === "SN") add(bussUndBettag(y), "Buß- und Bettag");
   const seen = new Set<string>();
   return list
     .filter((h) => (seen.has(h.date) ? false : (seen.add(h.date), true)))

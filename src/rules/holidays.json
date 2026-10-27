@@ -1,0 +1,32 @@
+{
+  "schemaVersion": 1,
+  "asOf": "2026-10-27",
+  "source": "Feiertagsgesetze of the 16 states (statewide statutory holidays only)",
+  "verified": true,
+  "note": "Statewide holidays only. Local ones (Augsburger Friedensfest, Fronleichnam in parts of Sachsen/Thüringen, Mariä Himmelfahrt in Catholic communities of Bayern) are not included. Dates: fixed MM-DD, or days after Easter Sunday, or a special rule. The first entry for a date wins.",
+  "holidays": [
+    { "name": "Neujahr", "fixed": "01-01", "regions": "all" },
+    { "name": "Heilige Drei Könige", "fixed": "01-06", "regions": ["BW", "BY", "ST"] },
+    { "name": "Internationaler Frauentag", "fixed": "03-08", "regions": ["BE"], "fromYear": 2019 },
+    { "name": "Internationaler Frauentag", "fixed": "03-08", "regions": ["MV"], "fromYear": 2023 },
+    { "name": "Karfreitag", "easter": -2, "regions": "all" },
+    { "name": "Ostersonntag", "easter": 0, "regions": ["BB"], "note": "Only Brandenburg lists it; for § 3b it counts everywhere (see calc.ts)." },
+    { "name": "Ostermontag", "easter": 1, "regions": "all" },
+    { "name": "Tag der Arbeit", "fixed": "05-01", "regions": "all" },
+    { "name": "Tag der Befreiung", "fixed": "05-08", "regions": ["BE"], "years": [2020, 2025] },
+    { "name": "Christi Himmelfahrt", "easter": 39, "regions": "all" },
+    { "name": "Pfingstsonntag", "easter": 49, "regions": ["BB"] },
+    { "name": "Pfingstmontag", "easter": 50, "regions": "all" },
+    { "name": "Fronleichnam", "easter": 60, "regions": ["BW", "BY", "HE", "NW", "RP", "SL"] },
+    { "name": "Mariä Himmelfahrt", "fixed": "08-15", "regions": ["SL"] },
+    { "name": "Weltkindertag", "fixed": "09-20", "regions": ["TH"], "fromYear": 2019 },
+    { "name": "Tag der Deutschen Einheit", "fixed": "10-03", "regions": "all" },
+    { "name": "Reformationstag (500 Jahre)", "fixed": "10-31", "regions": "all", "years": [2017] },
+    { "name": "Reformationstag", "fixed": "10-31", "regions": ["BB", "MV", "SN", "ST", "TH"] },
+    { "name": "Reformationstag", "fixed": "10-31", "regions": ["HB", "HH", "NI", "SH"], "fromYear": 2018 },
+    { "name": "Allerheiligen", "fixed": "11-01", "regions": ["BW", "BY", "NW", "RP", "SL"] },
+    { "name": "Buß- und Bettag", "special": "bussUndBettag", "regions": ["SN"] },
+    { "name": "1. Weihnachtstag", "fixed": "12-25", "regions": "all" },
+    { "name": "2. Weihnachtstag", "fixed": "12-26", "regions": "all" }
+  ]
+}

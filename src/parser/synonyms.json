@@ -1,0 +1,144 @@
+{
+  "schemaVersion": 1,
+  "asOf": "2026-10-27",
+  "source": "Wage-type names collected from German payroll programs (zvoove Payroll confirmed against a real payslip; the other names are common synonyms)",
+  "verified": false,
+  "note": "Matching order matters: the first category whose pattern hits the label (and whose exclude does not) wins.",
+  "categories": [
+    {
+      "id": "azkPayout",
+      "label": "Freizeitauszahlung / AZK payout",
+      "line": "freizeit",
+      "quantity": "hours",
+      "gross": true,
+      "match": "freizeit\\s*-?\\s*auszahl|azk\\s*-?\\s*auszahl|auszahlung\\s+(?:azk|arbeitszeitkonto|zeitkonto|gleitzeit|stunden|überstunden|mehrarbeit)|(?:stunden|überstunden|mehrarbeits?|gleitzeit)\\s*-?\\s*auszahl"
+    },
+    {
+      "id": "oneOff",
+      "label": "One-off payment (Weihnachtsgeld, Urlaubsgeld, Sonderzahlung)",
+      "quantity": "units",
+      "gross": true,
+      "match": "weihnachtsgeld|urlaubsgeld|jahressonderzahlung|sonderzahlung|einmalzahlung|prämie|praemie|inflationsausgleich|bonus|gratifikation|13\\.\\s*monat"
+    },
+    {
+      "id": "holidayPay",
+      "label": "Feiertagslohn (paid public holiday)",
+      "quantity": "hours",
+      "gross": true,
+      "match": "feiertags?(?:lohn|bezahlung|entgelt|vergütung|stunden|arbeit\\s*frei)|bezahlte?r?\\s+feiertage?|feiertag\\s*\\(?\\s*bezahlt|(?:lohn|entgelt)fortzahlung\\s+(?:an\\s+)?feiertag|\\bfeiertag\\s*-?\\s*lfz"
+    },
+    {
+      "id": "sick",
+      "label": "Sick pay (Entgeltfortzahlung)",
+      "quantity": "hours",
+      "gross": true,
+      "match": "lohnfortzahlung|entgeltfortzahlung|\\befz\\b|\\blfz\\b|krank"
+    },
+    {
+      "id": "bz",
+      "label": "Branchenzuschlag",
+      "line": "branchenzuschlag",
+      "quantity": "hours",
+      "gross": true,
+      "match": "branchen\\s*-?\\s*zuschl|\\bbz\\b|tv\\s*bz|branchenzuschl"
+    },
+    {
+      "id": "experience",
+      "label": "Erfahrungszuschlag",
+      "quantity": "hours",
+      "gross": true,
+      "match": "erfahrungs\\s*-?\\s*(?:zuschlag|stufe)"
+    },
+    {
+      "id": "overtime",
+      "label": "Overtime surcharge (Mehrarbeit)",
+      "line": "mehrarbeit",
+      "quantity": "hours",
+      "gross": true,
+      "match": "mehrarbeit|über\\s*-?\\s*stunden|ueberstunden|mehrstunden"
+    },
+    {
+      "id": "night",
+      "label": "Night surcharge",
+      "line": "nacht",
+      "quantity": "hours",
+      "gross": true,
+      "match": "nacht"
+    },
+    {
+      "id": "sunday",
+      "label": "Sunday surcharge",
+      "line": "sonntag",
+      "quantity": "hours",
+      "gross": true,
+      "match": "sonntag|\\bso\\.?\\s*-?\\s*zuschl"
+    },
+    {
+      "id": "holiday",
+      "label": "Holiday surcharge (Feiertagszuschlag)",
+      "line": "feiertag",
+      "quantity": "hours",
+      "gross": true,
+      "match": "feiertag|\\bft\\s*-?\\s*zuschl|\\bft\\s*\\d+\\s*%"
+    },
+    {
+      "id": "vacation",
+      "label": "Urlaub / Urlaubsentgelt",
+      "line": "tarifurlaub",
+      "quantity": "hours",
+      "gross": true,
+      "match": "urlaub",
+      "exclude": "urlaubsanspruch|rest\\s*-?\\s*urlaub|urlaubs?tage\\s*(?:rest|offen)"
+    },
+    {
+      "id": "travel",
+      "label": "Fahrgeld / travel costs",
+      "line": "fahrgeld",
+      "quantity": "units",
+      "gross": true,
+      "match": "fahrgeld|fahrt?\\s*-?\\s*kosten|kilometergeld|km\\s*-?\\s*geld|wegegeld"
+    },
+    {
+      "id": "allowance",
+      "label": "Verpflegung / Auslöse / other allowance",
+      "quantity": "units",
+      "gross": true,
+      "match": "verpflegung|\\bvma\\b|auslöse|ausloese|übernachtung|reisekosten|spesen|aufwandsentschädigung"
+    },
+    {
+      "id": "azkBooking",
+      "label": "Arbeitszeitkonto / Gleitzeit booking",
+      "quantity": "hours",
+      "gross": true,
+      "match": "gleitzeit|arbeitszeitkonto|zeitkonto|\\bazk\\b|freizeitausgleich|stundenkonto|vortrag"
+    },
+    {
+      "id": "shiftAllowance",
+      "label": "Shift or other Zulage",
+      "quantity": "hours",
+      "gross": true,
+      "match": "schicht\\s*-?\\s*(?:zulage|zuschlag|prämie)|wechselschicht|zulage|erschwernis"
+    },
+    {
+      "id": "deduction",
+      "label": "Deduction / net item (Vorschuss, VWL)",
+      "quantity": "units",
+      "gross": false,
+      "match": "vorschuss|\\bvwl\\b|vermögenswirksam|pfändung|darlehen|einbehalt|verrechnung|abschlagszahlung"
+    },
+    {
+      "id": "base",
+      "label": "Grundlohn / Normalstunden",
+      "line": "grundlohn",
+      "quantity": "hours",
+      "gross": true,
+      "match": "normal\\s*-?\\s*stunden|grundlohn|grundvergütung|grundentgelt|stundenlohn|lohn\\s*\\/?\\s*std|arbeitsstunden|tarif\\s*-?\\s*stunden|tariflohn|monatslohn|gehalt|arbeitslohn|zeitlohn|ist\\s*-?\\s*stunden|geleistete\\s+stunden"
+    },
+    {
+      "id": "other",
+      "label": "Other / not recognised",
+      "quantity": "units",
+      "gross": true
+    }
+  ]
+}

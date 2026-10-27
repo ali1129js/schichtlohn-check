@@ -1,4 +1,5 @@
 import { PAYSLIP_LINE_LABEL, PAYSLIP_LINES, type Payslip, type PayslipLine } from "@/lib/model";
+import { isCategoryId, labelKey, type CategoryId, type LabelMap } from "./categories";
 import type { Confidence, ParsedPayslip } from "./parser";
 
 export type PreviewTarget =
@@ -15,6 +16,9 @@ export interface PreviewField {
   note?: string;
   target: PreviewTarget;
   selected: boolean;
+  /** PDF text layer or OCR */
+  origin: "text" | "ocr";
+  ocrConfidence?: number;
 }
 
 export function formatDe(n: number): string {
@@ -52,6 +56,8 @@ export function buildPreview(p: ParsedPayslip): PreviewField[] {
         note: l.note,
         target: { kind: "line", line, part },
         selected: l.confidence !== "unsicher",
+        origin: l.origin ?? "text",
+        ...(l.ocrConfidence !== undefined ? { ocrConfidence: l.ocrConfidence } : {}),
       });
     }
   }
@@ -68,6 +74,8 @@ export function buildPreview(p: ParsedPayslip): PreviewField[] {
       note: v.note,
       target: { kind: "summary", field: f },
       selected: v.confidence !== "unsicher",
+      origin: v.origin ?? "text",
+      ...(v.ocrConfidence !== undefined ? { ocrConfidence: v.ocrConfidence } : {}),
     });
   }
   return out;
@@ -93,4 +101,54 @@ export function applyPreview(fields: PreviewField[], base: Payslip): ApplyResult
     applied++;
   }
   return errors.length ? { ok: false, errors } : { ok: true, payslip: next, applied };
+}
+
+/** A payslip row the app does not calculate (info only) or did not recognise. */
+export interface OtherRow {
+  key: string;
+  label: string;
+  category: CategoryId;
+  by: "user" | "dictionary" | "none";
+  hours?: number;
+  amount?: number;
+  source: string;
+  origin: "text" | "ocr";
+  /** keep it on the saved payslip (shown as an info row on the compare page) */
+  keep: boolean;
+}
+
+export function buildOther(p: ParsedPayslip): OtherRow[] {
+  return p.other.map((r, i) => ({
+    key: `${i}:${labelKey(r.label)}`,
+    label: r.label,
+    category: r.category,
+    by: r.by,
+    ...(r.hours !== undefined ? { hours: r.hours } : {}),
+    ...(r.amount !== undefined ? { amount: r.amount } : {}),
+    source: r.source,
+    origin: r.origin ?? "text",
+    keep: r.amount !== undefined && r.origin !== "ocr",
+  }));
+}
+
+/** Store the kept "other" rows on the payslip (replaces earlier imported ones). */
+export function applyOther(p: Payslip, rows: OtherRow[]): Payslip {
+  const other = rows
+    .filter((r) => r.keep)
+    .slice(0, 100)
+    .map((r) => ({ label: r.label.slice(0, 200), category: r.category, ...(r.hours !== undefined ? { hours: r.hours } : {}), ...(r.amount !== undefined ? { amount: r.amount } : {}) }));
+  const { other: _old, ...rest } = p;
+  return other.length ? { ...rest, other } : rest;
+}
+
+/** Remember the user's category choice for a label; returns a new map (zod-safe strings only). */
+export function rememberLabel(map: LabelMap, label: string, category: CategoryId): LabelMap {
+  const k = labelKey(label).slice(0, 200);
+  return { ...map, [k]: category };
+}
+
+export function toLabelMap(m: Record<string, string>): LabelMap {
+  const out: LabelMap = {};
+  for (const [k, v] of Object.entries(m)) if (isCategoryId(v)) out[k] = v;
+  return out;
 }

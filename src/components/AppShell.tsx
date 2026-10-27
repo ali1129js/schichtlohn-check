@@ -61,6 +61,9 @@ export function AppShell({ tab, onTab, children }: { tab: Tab; onTab: (t: Tab) =
       <footer className="footer">
         <PrivacyNote />
         <p>Gross pay only: no tax, social insurance or net calculation. Not legal or tax advice; check your contract and payslip.</p>
+        <p className="small muted">
+          Schichtlohn-Check v{__APP_VERSION__} · <a href="https://github.com/ali1129js/schichtlohn-check/blob/main/CHANGELOG.md" rel="noreferrer">Changelog</a>
+        </p>
       </footer>
     </div>
   );

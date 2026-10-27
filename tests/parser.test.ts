@@ -243,13 +243,13 @@ describe("no network: the import runs 100 % in the browser", () => {
     for (const f of files) {
       const src = readFileSync(f, "utf8");
       expect(src, f).not.toMatch(/\bfetch\s*\(|XMLHttpRequest|new WebSocket|sendBeacon|EventSource|navigator\.sendBeacon/);
-      if (!f.endsWith("rules/defaults.ts") && !f.endsWith("pages/Sources.tsx")) expect(src, f).not.toMatch(/https?:\/\/(?!www\.w3\.org)/);
+      if (!f.endsWith("rules/defaults.ts") && !f.endsWith("pages/Sources.tsx") && !f.endsWith("components/AppShell.tsx")) expect(src, f).not.toMatch(/https?:\/\/(?!www\.w3\.org)/);
     }
   });
 
-  it("the production build forbids network requests via CSP connect-src 'none'", () => {
+  it("the production build allows requests only to this site (CSP connect-src 'self')", () => {
     const cfg = readFileSync(new URL("../vite.config.ts", import.meta.url), "utf8");
-    expect(cfg).toMatch(/"connect-src 'none'"/);
+    expect(cfg).toMatch(/"connect-src 'self'"/);
     expect(cfg).toMatch(/apply: "build"/);
   });
 });

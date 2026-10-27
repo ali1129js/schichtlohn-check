@@ -34,11 +34,12 @@ function NumField({ id, label, value, onChange }: { id: string; label: string; v
 }
 
 export function PayslipPage({ month, onMonth }: { month: string; onMonth: (m: string) => void }) {
-  const { data, setPayslip } = useData();
+  const { data, setPayslip, setLabelMap } = useData();
   const st = data.settings;
   const p: Payslip = data.payslips[month] ?? { lines: {} };
   const vacation = p.lines.tarifurlaub?.hours ?? 0;
-  const r = useMemo(() => calcMonth(data.shifts, month, st, vacation), [data.shifts, month, st, vacation]);
+  const payout = p.lines.freizeit?.hours ?? 0;
+  const r = useMemo(() => calcMonth(data.shifts, month, st, vacation, payout), [data.shifts, month, st, vacation, payout]);
   const rows = useMemo(() => comparePayslip(r, p, st), [r, p, st]);
   const diffs = rows.filter((x) => x.status === "diff").length;
 
@@ -52,7 +53,14 @@ export function PayslipPage({ month, onMonth }: { month: string; onMonth: (m: st
   return (
     <>
       <MonthNav month={month} onChange={onMonth} />
-      <PdfImport month={month} current={data.payslips[month]} onApply={(m, ps) => (setPayslip(m, ps), onMonth(m))} />
+      <PdfImport
+        month={month}
+        current={data.payslips[month]}
+        onApply={(m, ps) => (setPayslip(m, ps), onMonth(m))}
+        labelMap={data.labelMap}
+        onLabelMap={setLabelMap}
+        vlmOptIn={st.ocrVlm}
+      />
 
       <section className="card stack" aria-label="Comparison">
         <div className="row">

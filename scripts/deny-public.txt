@@ -1,0 +1,13 @@
+# Leak guard deny-list (public). No personal value is stored here in plain text:
+# - structural patterns for identifiers that must never be committed,
+# - hashed words (hw:<len>:<sha256 prefix of the lower-cased word>).
+# Exact private values (amounts, IDs) live only in a local list outside the repo (DENY_EXTRA).
+re:\bDE\d{2}(?:\s?\d{4}){4}\s?\d{2}\b
+re:\b\d{2}\s?\d{6}\s?[A-Z]\s?\d{3}\b
+re:(?<![\d.])\d{11}(?![\d])
+re:\b(?:Steuer-?ID|Steuer-?Ident|IdNr|RV-?Nr|Versicherungsnummer|IBAN|BIC)\b\s*[:#]?\s*[A-Z0-9]{6,}
+re:Ali'?s\s+(?:own\s+)?(?:payslip|pay slip|Lohnabrechnung|Abrechnung)
+hw:8:5bbd0d2102dab5f8
+hw:5:107eaa270bb4d714
+hw:10:8ab4f715cee1b42b
+hw:8:684ddab5fcdaebd5

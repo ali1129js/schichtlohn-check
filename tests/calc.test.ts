@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { calcMonth, cents, contractMonthHours, monthHours, paidCats, rates, s3bDayPct, shiftInterval, workedMinutes } from "@/lib/calc";
 import { settings, shift } from "./helpers";
+import { SettingsSchema, type Settings } from "@/lib/model";
 
 const H = (min: number) => min / 60;
 
@@ -69,7 +70,7 @@ describe("time splitting", () => {
   });
 
   it("Sunday night shift: Sunday until midnight, then night (highest only, MTV § 6.4)", () => {
-    const h = monthHours([shift("2026-03-01", "22:00", "06:00")], "2026-03", st);
+    const h = monthHours([shift("2026-03-01", "22:00", "06:00")], "2026-03", settings({ combine: "highest" }));
     expect(H(h.sunday)).toBe(2);
     expect(H(h.night)).toBe(6);
     expect(H(h.rawNight)).toBe(7);
@@ -124,11 +125,11 @@ describe("surcharge maths", () => {
   });
 
   it("highest-only picks the larger rate and prefers holiday on a tie", () => {
-    const st = settings({ nightPct: 25, sundayPct: 50, holidayPct: 100 });
+    const st = settings({ nightPct: 25, sundayPct: 50, holidayPct: 100, combine: "highest" });
     expect(paidCats({ night: true, sunday: true, holiday: false }, st)).toEqual(["sunday"]);
     expect(paidCats({ night: true, sunday: true, holiday: true }, st)).toEqual(["holiday"]);
-    expect(paidCats({ night: true, sunday: false, holiday: false }, settings({ nightPct: 60, sundayPct: 50 }))).toEqual(["night"]);
-    expect(paidCats({ night: false, sunday: true, holiday: true }, settings({ sundayPct: 100, holidayPct: 100 }))).toEqual(["holiday"]);
+    expect(paidCats({ night: true, sunday: false, holiday: false }, settings({ nightPct: 60, sundayPct: 50, combine: "highest" }))).toEqual(["night"]);
+    expect(paidCats({ night: false, sunday: true, holiday: true }, settings({ sundayPct: 100, holidayPct: 100, combine: "highest" }))).toEqual(["holiday"]);
   });
 
   it("month with one night shift: amounts per component and total", () => {
@@ -221,8 +222,8 @@ describe("workplace state decides holidays (BE default)", () => {
   });
   it("work on 8 March 2026 (a Sunday) is holiday work in Berlin but only Sunday work in Brandenburg", () => {
     const s = [shift("2026-03-08", "06:00", "14:00")];
-    const be = calcMonth(s, "2026-03", settings({ region: "BE" }));
-    const bb = calcMonth(s, "2026-03", settings({ region: "BB" }));
+    const be = calcMonth(s, "2026-03", settings({ region: "BE", combine: "highest" }));
+    const bb = calcMonth(s, "2026-03", settings({ region: "BB", combine: "highest" }));
     expect(be.hours.holiday / 60).toBe(8);
     expect(be.hours.sunday).toBe(0);
     expect(bb.hours.holiday).toBe(0);
@@ -249,5 +250,45 @@ describe("§ 3b: Oster-/Pfingstsonntag (R 3b (3) Satz 4 LStR)", () => {
   it("in Brandenburg they are statutory holidays and get the holiday surcharge", () => {
     const r = calcMonth([shift("2026-04-05", "06:00", "14:00")], "2026-04", settings({ region: "BB" }));
     expect(r.hours.holiday / 60).toBe(8);
+  });
+});
+
+describe("defaults confirmed against a real zvoove payslip", () => {
+  it("default: night and Sunday are both paid for overlapping hours (likely)", () => {
+    const h = monthHours([shift("2026-03-01", "22:00", "06:00")], "2026-03", settings());
+    expect(H(h.sunday)).toBe(2);
+    expect(H(h.night)).toBe(7);
+  });
+
+  it("BZ can be entered in €/h; the % is derived from it", () => {
+    const r = rates(settings({ baseRate: 14.5, bzMode: "eur", bzEur: 2.18 }));
+    expect(r.bz).toBe(2.18);
+    expect(r.bzPct).toBe(15.03);
+    expect(r.withBz).toBe(16.68);
+  });
+
+  it("BZ is paid on all paid hours: base + Urlaub + Freizeitauszahlung hours", () => {
+    const s = [shift("2026-03-04", "06:00", "14:00")];
+    const st = settings({ baseRate: 14.5, bzMode: "eur", bzEur: 2 });
+    const bz = (x: ReturnType<typeof calcMonth>) => x.components.find((c) => c.key === "branchenzuschlag")!;
+    expect(bz(calcMonth(s, "2026-03", st, 7, 5)).hours).toBe(20);
+    expect(bz(calcMonth(s, "2026-03", st, 7, 5)).amount).toBe(40);
+    expect(bz(calcMonth(s, "2026-03", settings({ ...st, bzHours: "base" }), 7, 5)).hours).toBe(8);
+  });
+
+  it("rounding 'amount' rounds only hours × % × rate; 'rate' rounds the €/h first", () => {
+    // 25 % of 16.66 = 4.165 €/h; 30 h: 124.95 (amount) vs 4.17 × 30 = 125.10 (rate)
+    const s = Array.from({ length: 5 }, (_, i) => shift(`2026-03-0${i + 2}`, "23:00", "05:00"));
+    const base = { baseRate: 16.66, bzPct: 0, nightPct: 25, nightStart: "23:00", nightEnd: "06:00" };
+    const night = (st: Settings) => calcMonth(s, "2026-03", st).components.find((c) => c.key === "night")!.amount;
+    expect(night(settings({ ...base, surchargeRounding: "amount" }))).toBe(124.95);
+    expect(night(settings({ ...base, surchargeRounding: "rate" }))).toBe(125.1);
+  });
+
+  it("old saved settings without the new fields still load (zod defaults)", () => {
+    const { bzMode, bzEur, bzHours, azkPayoutBase, surchargeRounding, ...old } = settings();
+    void [bzMode, bzEur, bzHours, azkPayoutBase, surchargeRounding];
+    const parsed = SettingsSchema.parse(old);
+    expect(parsed).toMatchObject({ bzMode: "pct", bzHours: "paid", azkPayoutBase: "base", surchargeRounding: "amount" });
   });
 });

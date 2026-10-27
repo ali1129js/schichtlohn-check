@@ -1,7 +1,9 @@
 import { z } from "zod";
 import { REGION_IDS } from "./holidays";
 import {
+  AZK_PAYOUT_BASE,
   BASE_HOURS_MODE,
+  BZ_HOURS,
   COMBINE_RULE,
   ENTGELTGRUPPEN,
   etvRate,
@@ -13,6 +15,7 @@ import {
   OVERTIME_THRESHOLD_PCT,
   SUNDAY_PCT,
   SURCHARGE_BASE,
+  SURCHARGE_ROUNDING,
   WEEKLY_HOURS,
   bzPercentFor,
 } from "@/rules/defaults";
@@ -29,6 +32,13 @@ export const SettingsSchema = z.object({
   bzMonths: z.number().int().min(0).max(240),
   bzAuto: z.boolean(),
   bzPct: pct,
+  /** enter the Branchenzuschlag as % of the base rate or as EUR per hour */
+  bzMode: z.enum(["pct", "eur"]).default("pct"),
+  bzEur: money.default(0),
+  /** BZ on base hours only, or on all paid hours (base + Urlaub + AZK payout hours) */
+  bzHours: z.enum(["base", "paid"]).default(BZ_HOURS.value),
+  azkPayoutBase: z.enum(["base", "base+bz"]).default(AZK_PAYOUT_BASE.value),
+  surchargeRounding: z.enum(["rate", "amount"]).default(SURCHARGE_ROUNDING.value),
   weeklyHours: z.number().min(1).max(60),
   /** state of the WORKPLACE: decides public holidays */
   region: z.enum(REGION_IDS),
@@ -39,6 +49,8 @@ export const SettingsSchema = z.object({
   holidayPct: pct,
   /** 24.12. and 31.12. from 14:00 paid like a holiday (MTV § 3.6) */
   eveAsHoliday: z.boolean(),
+  /** experimental in-browser document-AI engine for scans; off until the user agrees to the download */
+  ocrVlm: z.boolean().default(false),
   overtimePct: pct,
   overtimeThresholdPct: pct,
   combine: z.enum(["highest", "sum"]),
@@ -104,14 +116,24 @@ export const PayslipSchema = z.object({
   azkSaldo: optNum,
   /** informational values from the payslip that the app does not calculate */
   extra: z.record(z.string(), z.string()).optional(),
+  /** payslip lines the app does not calculate (info only): Urlaubsgeld, Verpflegung, unknown lines ... */
+  other: z
+    .array(z.object({ label: z.string().max(200), category: z.string().max(40), hours: optNum, amount: optNum }))
+    .max(100)
+    .optional(),
 });
 export type Payslip = z.infer<typeof PayslipSchema>;
 
+/** Version of the saved data layout. Bump it and add a migration in storage.ts when the shape changes. */
+export const SCHEMA_VERSION = 2;
+
 export const AppDataSchema = z.object({
-  version: z.literal(1),
+  schemaVersion: z.literal(SCHEMA_VERSION),
   settings: SettingsSchema,
   shifts: z.array(ShiftSchema).max(5000),
   payslips: z.record(MONTH, PayslipSchema),
+  /** the user's own "this payslip line is ..." choices, by normalised label (see import/categories.ts) */
+  labelMap: z.record(z.string().max(200), z.string().max(40)).default({}),
 });
 export type AppData = z.infer<typeof AppDataSchema>;
 
@@ -123,6 +145,11 @@ export function defaultSettings(today = new Date().toISOString().slice(0, 10)): 
     bzMonths: 0,
     bzAuto: true,
     bzPct: bzPercentFor(eg, 0),
+    bzMode: "pct",
+    bzEur: 0,
+    bzHours: BZ_HOURS.value,
+    azkPayoutBase: AZK_PAYOUT_BASE.value,
+    surchargeRounding: SURCHARGE_ROUNDING.value,
     weeklyHours: WEEKLY_HOURS.value,
     region: "BE",
     nightStart: NIGHT_WINDOW.value.start,
@@ -131,6 +158,7 @@ export function defaultSettings(today = new Date().toISOString().slice(0, 10)): 
     sundayPct: SUNDAY_PCT.value,
     holidayPct: HOLIDAY_PCT.value,
     eveAsHoliday: true,
+    ocrVlm: false,
     overtimePct: OVERTIME_PCT.value,
     overtimeThresholdPct: OVERTIME_THRESHOLD_PCT.value,
     combine: COMBINE_RULE.value,
@@ -142,7 +170,7 @@ export function defaultSettings(today = new Date().toISOString().slice(0, 10)): 
 }
 
 export function emptyData(): AppData {
-  return { version: 1, settings: defaultSettings(), shifts: [], payslips: {} };
+  return { schemaVersion: SCHEMA_VERSION, settings: defaultSettings(), shifts: [], payslips: {}, labelMap: {} };
 }
 
 export function emptyPayslip(): Payslip {

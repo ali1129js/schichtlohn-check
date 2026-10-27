@@ -10,7 +10,8 @@ import { settings, shift } from "./helpers";
 // Server-side render smoke test of every page (no DOM needed): catches render errors and checks
 // that the required notices are on screen.
 const data: AppData = {
-  version: 1,
+  schemaVersion: 2,
+  labelMap: {},
   settings: settings({ region: "BE" }),
   shifts: [shift("2026-03-07", "22:00", "06:00", [{ start: "02:00", minutes: 30 }]), shift("2026-03-08", "06:00", "14:00")],
   payslips: { "2026-03": { lines: { nacht: { hours: 7.5, rate: 3.84, amount: 28.8 } }, gesamtbrutto: 100 } },

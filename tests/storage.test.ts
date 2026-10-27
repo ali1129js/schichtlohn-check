@@ -25,7 +25,7 @@ describe("storage", () => {
 
   it.each([
     ["broken JSON", "{nope"],
-    ["wrong version", JSON.stringify({ ...emptyData(), version: 2 })],
+    ["a newer schema version", JSON.stringify({ ...emptyData(), schemaVersion: 99 })],
     ["bad time", JSON.stringify({ ...emptyData(), shifts: [{ id: "a", date: "2026-03-04", start: "25:00", end: "06:00", breaks: [], kind: "N" }] })],
     ["start equals end", JSON.stringify({ ...emptyData(), shifts: [{ id: "a", date: "2026-03-04", start: "06:00", end: "06:00", breaks: [], kind: "F" }] })],
     ["negative wage", JSON.stringify({ ...emptyData(), settings: { ...emptyData().settings, baseRate: -1 } })],

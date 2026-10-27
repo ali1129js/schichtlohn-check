@@ -18,7 +18,8 @@ export function PayPage({ month, onMonth }: { month: string; onMonth: (m: string
   const { data } = useData();
   const st = data.settings;
   const vacation = data.payslips[month]?.lines.tarifurlaub?.hours ?? 0;
-  const r = useMemo(() => calcMonth(data.shifts, month, st, vacation), [data.shifts, month, st, vacation]);
+  const payout = data.payslips[month]?.lines.freizeit?.hours ?? 0;
+  const r = useMemo(() => calcMonth(data.shifts, month, st, vacation, payout), [data.shifts, month, st, vacation, payout]);
   const rt = rates(st);
   const h = r.hours;
   const noShifts = h.worked === 0;
@@ -79,7 +80,7 @@ export function PayPage({ month, onMonth }: { month: string; onMonth: (m: string
         <p className="small muted">
           {st.combine === "highest"
             ? "Combine rule: only the highest surcharge is paid when several apply (MTV § 6.4)."
-            : "Combine rule: overlapping surcharges are added together."}{" "}
+            : "Combine rule: overlapping surcharges are added together (likely, from a real payslip)."}{" "}
           Arbeitszeitkonto: {r.azkDelta >= 0 ? "+" : ""}
           {num2(r.azkDelta)} h vs contract.
         </p>
@@ -125,12 +126,13 @@ export function PayPage({ month, onMonth }: { month: string; onMonth: (m: string
         </div>
         <ul className="small muted list">
           <li>
-            Base {num2(st.baseRate)} €/h + Branchenzuschlag {num2(st.bzPct)} % = {num2(rt.bz)} €/h. Base pay counts {st.baseHoursMode === "worked" ? "worked" : "contract"}{" "}
-            hours ({num2(r.baseHours)} h).
+            Base {num2(st.baseRate)} €/h + Branchenzuschlag {num2(rt.bzPct)} % = {num2(rt.bz)} €/h. Base pay counts {st.baseHoursMode === "worked" ? "worked" : "contract"}{" "}
+            hours ({num2(r.baseHours)} h).{" "}
+            {st.bzHours === "paid" ? "The BZ is paid on all paid hours, including Urlaub and Freizeitauszahlung hours from the payslip." : "The BZ is paid on the base hours only."}
           </li>
           <li>
-            Surcharges are calculated on {st.surchargeBase === "base" ? `the base rate (${num2(st.baseRate)} €)` : `base + BZ (${num2(rt.withBz)} €)`}; each rate is
-            rounded to cents first, like a payslip.
+            Surcharges are calculated on {st.surchargeBase === "base" ? `the base rate (${num2(st.baseRate)} €)` : `base + BZ (${num2(rt.withBz)} €)`}
+            {st.surchargeRounding === "rate" ? "; each €/h rate is rounded to cents first." : "; only the amount is rounded to cents (hours × % × rate)."}
           </li>
           <li>
             § 3b tax-free part: per minute, on a Grundlohn of {num2(rt.grundlohn)} €/h (max 50 €), capped at 25 % night (40 % 0-4 h if the shift started

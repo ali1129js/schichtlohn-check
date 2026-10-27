@@ -1,0 +1,65 @@
+{
+  "schemaVersion": 1,
+  "id": "datev",
+  "name": "DATEV (LODAS / Lohn und Gehalt)",
+  "checked": false,
+  "verified": false,
+  "asOf": "2026-10-27",
+  "source": "Common layout features; not checked against a real payslip",
+  "note": "Typical 'Abrechnung der Brutto/Netto-Bezüge' with Lohnart | Bezeichnung | Menge | Faktor | Betrag. Not checked against a real DATEV payslip: values are flagged when the column mapping is unclear.",
+  "markers": [
+    {
+      "pattern": "\\bdatev\\b",
+      "flags": "i",
+      "weight": 10
+    },
+    {
+      "pattern": "\\blodas\\b",
+      "flags": "i",
+      "weight": 8
+    },
+    {
+      "pattern": "lohn\\s+und\\s+gehalt",
+      "flags": "i",
+      "weight": 6
+    },
+    {
+      "pattern": "brutto\\s*\\/\\s*netto\\s*-?\\s*bezüge",
+      "flags": "i",
+      "weight": 4
+    },
+    {
+      "pattern": "\\bfaktor\\b",
+      "flags": "i",
+      "weight": 1
+    }
+  ],
+  "headers": {
+    "qty": [
+      "Menge"
+    ],
+    "rate": [
+      "Faktor"
+    ],
+    "amount": [
+      "Betrag"
+    ]
+  },
+  "totals": {
+    "gesamtbrutto": [
+      "^gesamt\\s*-?\\s*brutto$"
+    ],
+    "steuerbrutto": [
+      "^steuer\\s*-?\\s*brutto$"
+    ],
+    "svbrutto": [
+      "^sv\\s*-?\\s*brutto$"
+    ]
+  },
+  "synonyms": [
+    {
+      "category": "base",
+      "match": "^std\\.?\\s*-?\\s*lohn"
+    }
+  ]
+}

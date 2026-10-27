@@ -1,0 +1,40 @@
+{
+  "schemaVersion": 1,
+  "id": "zvoove",
+  "name": "zvoove Payroll",
+  "checked": true,
+  "verified": true,
+  "asOf": "2026-10-27",
+  "source": "Confirmed against a real zvoove payslip (09/2026); no values from it are stored",
+  "note": "Columns NR | Lohnartbezeichnung | KST | Tage | Stunden | Satz | Zu/Ab | ST | SV | GB | StPfl. | SozPfl. | Brutto; totals as label rows with the values below; Jahressummen block. Checked against one real payslip (09/2026).",
+  "markers": [
+    {
+      "pattern": "zvoove",
+      "flags": "i",
+      "weight": 10
+    },
+    {
+      "pattern": "programmversion",
+      "flags": "i",
+      "weight": 2
+    },
+    {
+      "pattern": "lohnartbezeichnung",
+      "flags": "i",
+      "weight": 2
+    },
+    {
+      "pattern": "\\bzu\\/ab\\b",
+      "flags": "i",
+      "weight": 2
+    },
+    {
+      "pattern": "summebrutto|kvverspfl",
+      "flags": "i",
+      "weight": 2
+    }
+  ],
+  "ytdHeadings": [
+    "^jahres\\s*-?\\s*summen"
+  ]
+}

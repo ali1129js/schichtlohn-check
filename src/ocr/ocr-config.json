@@ -1,0 +1,66 @@
+{
+  "schemaVersion": 1,
+  "asOf": "2026-10-27",
+  "source": "Schichtlohn-Check defaults, tuned on synthetic scans (tests/fixtures/scan-zvoove.png)",
+  "verified": false,
+  "note": "Text recognition settings. Change values here (and run the tests); no code changes are needed. engines.order is tried first to last; an engine is used only if it is enabled and its requirements are met on the device. Tesseract does its own page-layout analysis, which copes with small skew, so there is no separate deskew step.",
+  "dpi": 300,
+  "maxImageSide": 4200,
+  "maxPages": 5,
+  "textLayer": {
+    "minChars": 40,
+    "minDecimalNumbers": 2,
+    "minCleanRatio": 0.85,
+    "keywords": [
+      "brutto",
+      "netto",
+      "lohn",
+      "gehalt",
+      "abrechnung",
+      "entgelt",
+      "stunden",
+      "zuschlag",
+      "betrag",
+      "summe",
+      "auszahlung"
+    ]
+  },
+  "preprocess": {
+    "grayscale": true,
+    "threshold": "otsu"
+  },
+  "reliability": {
+    "pruefenMinConfidence": 80
+  },
+  "engines": {
+    "order": [
+      "graniteDocling",
+      "tesseract"
+    ],
+    "graniteDocling": {
+      "enabled": true,
+      "name": "Granite Docling 258M (document AI, on this device)",
+      "model": "onnx-community/granite-docling-258M-ONNX",
+      "dtype": "q4f16",
+      "downloadMB": 264,
+      "requiresWebGPU": true,
+      "requiresOptIn": true,
+      "assets": {
+        "modelPath": "models/granite-docling-258M/"
+      },
+      "note": "Experimental, OFF for every user until they switch it on in Settings (consent to the download). The engine interface is in place; the model run itself is not implemented yet (docs/VLM-ENGINE.md), so the app falls back to Tesseract. Size = q4f16 vision encoder + embed tokens + decoder of the ONNX export."
+    },
+    "tesseract": {
+      "enabled": true,
+      "name": "Tesseract (deu)",
+      "lang": "deu",
+      "pageSegMode": 3,
+      "downloadMB": 5.4,
+      "assets": {
+        "workerPath": "ocr/worker.min.js",
+        "corePath": "ocr/core/",
+        "langPath": "ocr/lang/"
+      }
+    }
+  }
+}

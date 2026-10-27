@@ -1,0 +1,121 @@
+{
+  "schemaVersion": 1,
+  "etv": {
+    "label": "Entgelttabelle DGB/GVP (hourly rates per Entgeltgruppe)",
+    "source": "Entgelttarifvertrag DGB/GVP of 12.09.2025, Anlage (tables from 01.01.2026 and 01.09.2026); 01.04.2027 table as published by GVP",
+    "sourceUrl": "https://www.dgb.de/fileadmin/download_center/Uploads/2025-09-12_Entgelttarifvertrag_DGB-GVP_ab_01012026.pdf",
+    "asOf": "2026-10-27",
+    "verified": true,
+    "kind": "exact",
+    "note": "Rates from 01.04.2027 were read from personaldienstleister.de (GVP), not from the DGB PDF. Erfahrungszuschlag (+1.5 % after 9 months, +3 % after 12 months at the same customer) is not included; enter it in the hourly rate if it applies.",
+    "tables": [
+      {
+        "validFrom": "2026-01-01",
+        "validTo": "2026-08-31",
+        "rates": {
+          "1": 14.96,
+          "2a": 15.29,
+          "2b": 15.69,
+          "3": 16.69,
+          "4": 17.65,
+          "5": 19.78,
+          "6": 21.97,
+          "7": 25.56,
+          "8": 27.36,
+          "9": 28.7
+        }
+      },
+      {
+        "validFrom": "2026-09-01",
+        "validTo": "2027-03-31",
+        "rates": {
+          "1": 15.33,
+          "2a": 15.67,
+          "2b": 16.08,
+          "3": 17.11,
+          "4": 18.09,
+          "5": 20.27,
+          "6": 22.52,
+          "7": 26.2,
+          "8": 28.04,
+          "9": 29.42
+        }
+      },
+      {
+        "validFrom": "2027-04-01",
+        "validTo": null,
+        "rates": {
+          "1": 15.87,
+          "2a": 16.22,
+          "2b": 16.64,
+          "3": 17.71,
+          "4": 18.72,
+          "5": 20.98,
+          "6": 23.31,
+          "7": 27.12,
+          "8": 29.02,
+          "9": 30.45
+        }
+      }
+    ]
+  },
+  "bzChemie": {
+    "label": "Branchenzuschlag Chemie (TV BZ Chemie) steps",
+    "source": "TV BZ Chemie, GVP version of 14.11.2024, § 2 (3) - copy hosted by a staffing agency",
+    "sourceUrl": "https://www.dremo.com/fileadmin/Media/PDF/Tarifvertraege/241114_GVP_TV_BZ_Chemie.pdf",
+    "asOf": "2026-10-27",
+    "verified": false,
+    "kind": "exact",
+    "note": "Not confirmed from IG BCE or GVP directly. The text still refers to the old ETV BAP/iGZ, which were replaced by ETV DGB/GVP on 01.01.2026. Older versions paid the first step only after 6 weeks. The surcharge can be capped at the pay of a comparable customer employee minus 10 % (§ 2 (5)). Check your payslip / contract.",
+    "steps": [
+      {
+        "fromMonths": 0,
+        "pct": {
+          "EG1-2b": 15,
+          "EG3-5": 10,
+          "EG6-9": 4
+        }
+      },
+      {
+        "fromMonths": 3,
+        "pct": {
+          "EG1-2b": 20,
+          "EG3-5": 14,
+          "EG6-9": 6
+        }
+      },
+      {
+        "fromMonths": 5,
+        "pct": {
+          "EG1-2b": 30,
+          "EG3-5": 21,
+          "EG6-9": 8
+        }
+      },
+      {
+        "fromMonths": 7,
+        "pct": {
+          "EG1-2b": 45,
+          "EG3-5": 31,
+          "EG6-9": 16
+        }
+      },
+      {
+        "fromMonths": 9,
+        "pct": {
+          "EG1-2b": 53,
+          "EG3-5": 35,
+          "EG6-9": 20
+        }
+      },
+      {
+        "fromMonths": 15,
+        "pct": {
+          "EG1-2b": 67,
+          "EG3-5": 45,
+          "EG6-9": 24
+        }
+      }
+    ]
+  }
+}

@@ -6,12 +6,26 @@ holiday surcharges, Mehrarbeit, § 3b tax-free part), and compare it line by lin
 typed in or imported from the payslip PDF.
 
 - **Gross only.** No tax, social insurance or net calculation.
-- **Your data never leaves this device.** Everything is kept in `localStorage`. The production build
-  ships a CSP with `connect-src 'none'`, and a test scans `src/` for network APIs.
-- **PDF import runs 100 % in the browser.** pdf.js is loaded lazily and the parser is rule based
-  (`src/import/parser.ts`: `LINE_RULES`, `SUMMARY_RULES`, `INFO_RULES`). Scanned PDFs without text
-  get a clear message (no OCR yet). "Try sample" loads a made-up payslip (Max Beispiel, Musterzeit
-  Personal GmbH, Beispiel Pharma AG).
+- **Your data never leaves this device.** Everything is kept in `localStorage` (versioned with
+  `schemaVersion` and migrations; old data is migrated, never wiped). The production build ships a CSP
+  that allows only this site's own origin (`connect-src 'self'`, `worker-src 'self' blob:`), and tests
+  assert that no third-party origin appears in the CSP, the OCR config or `src/`.
+- **Payslip import runs 100 % in the browser.** PDFs and photos/scans (PDF, JPG, PNG, WebP; HEIC where
+  the browser can decode it). Per page the PDF text layer is used when it looks sane; otherwise the page
+  is rendered at about 300 dpi and read with OCR.
+- **Layouts are data.** `src/parser/profiles/*.json` (zvoove confirmed against a real zvoove payslip;
+  DATEV and Landwehr basic coverage) plus a generic fallback and a synonym dictionary
+  (`src/parser/synonyms.json`). Unknown lines are shown with a category you pick; the choice is
+  remembered. Totals are cross-checked, nothing is applied automatically.
+- **OCR engines are pluggable** (`src/ocr/engines/*`, chosen by `src/ocr/ocr-config.json` order plus
+  capability checks, all with the same output contract):
+  - **Tesseract.js (deu)**: live default, self-hosted under `/ocr/` (about 5.4 MB on first use, no CDN).
+  - **Granite Docling (document AI, WebGPU)**: experimental, OFF by default, switched on only in
+    Settings after a consent prompt showing the ~264 MB size. In this version it is an interface stub
+    and falls back to Tesseract (see `docs/VLM-ENGINE.md`).
+  OCR values are never marked "sicher": the UI shows the engine, a Text/OCR source per field, the
+  word confidence, a warning banner, and requires an explicit "I have checked" before applying.
+- "Try sample" loads a made-up payslip (Max Beispiel, Musterzeit Personal GmbH, Beispiel Pharma AG).
 - **Holidays follow the workplace state** (all 16 Bundesländer, default Berlin), not the home address.
   Tariff rates are nationwide, with no Ost/West difference.
 
@@ -19,17 +33,31 @@ typed in or imported from the payslip PDF.
 
 ```bash
 npm install
-npm test           # vitest
+npm test           # leak guard + vitest
+npm run typecheck
 npm run dev        # http://localhost:5191
 npm run build && npm run preview   # http://localhost:4191
 npm run sample:pdf # regenerate the made-up sample payslip PDF + fixtures
+npm run sample:scan # regenerate the synthetic scanned fixture (needs pdftoppm)
+npm run guard:history # leak guard over the whole git history
 ```
 
-Stack: Vite 6, React 18, strict TypeScript, zod 4, Vitest, pdfjs-dist (legacy build).
+Stack: Vite 6, React 18, strict TypeScript, zod 4, Vitest, pdfjs-dist (legacy build), tesseract.js 7.
+
+Docs: [adding a payslip layout](docs/ADDING-A-LAYOUT.md), [updating rates](docs/UPDATING-RATES.md),
+[OCR](docs/OCR.md), [document-AI engine TODO](docs/VLM-ENGINE.md), [changelog](CHANGELOG.md).
+
+Deploy: static Vite build on Vercel. `vercel.json` sends `index.html` with `no-cache`, hashed
+`/assets/*` as immutable, and the OCR files with revalidation. There is no service worker.
+
+Leak guard: `scripts/leak-guard.mjs` runs before every test and build. `scripts/deny-public.txt` holds
+only structural patterns and hashed words; exact private values are checked locally via `DENY_EXTRA`
+from a list kept outside the repo.
 
 ## Where the numbers come from
 
-Every default lives in `src/rules/defaults.ts` with its source URL, an "as of" date and `verified`.
+Every default lives in zod-validated data files (`src/rules/tariffs.json`, `s3b.json`, `holidays.json`)
+with its source, an "as of" date and `verified`; `src/rules/defaults.ts` loads them.
 Values marked `verified: false` show an **unconfirmed** badge in the UI.
 
 | Value | Status | Source |
@@ -42,7 +70,7 @@ Values marked `verified: false` show an **unconfirmed** badge in the UI.
 | Surcharges on base + BZ, overtime on base + BZ, base pay on worked hours | **unconfirmed** | agencies handle this differently |
 | Shift presets F/S/N | not tariff values | editable |
 
-Public holidays: statewide statutory holidays for all 16 states (`src/lib/holidays.ts`). Local
+Public holidays: statewide statutory holidays for all 16 states (`src/rules/holidays.json`). Local
 holidays (Augsburger Friedensfest, Fronleichnam in parts of Sachsen/Thüringen, Mariä Himmelfahrt in
 Catholic Bavarian communities) are not included.
 
@@ -59,3 +87,11 @@ Catholic Bavarian communities) are not included.
 
 Things the made-up sample shows that differ from the tariff text: holiday 125 % (MTV max 100 %),
 overtime on the base rate only, and "EG 2" (the GVP table has 2a/2b).
+
+## Known gaps
+
+- DATEV and Landwehr profiles are built from public examples and synthetic fixtures, not confirmed against real slips.
+- Branchenzuschlag on Urlaub/holiday pay is not confirmed; the night/Sunday overlap rule is marked "likely".
+- Fahrgeld quantity semantics (days vs km) differ between employers.
+- OCR makes typical mistakes (lost decimal commas, misread letters); always check every value.
+- The document-AI engine is a stub behind an experimental toggle.

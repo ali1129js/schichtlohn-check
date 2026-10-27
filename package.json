@@ -1,22 +1,29 @@
 {
   "name": "schichtlohn-check",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
   "type": "module",
   "description": "Shift pay checker for Zeitarbeit shift workers (chemical/pharma). Gross only, data stays in the browser.",
   "scripts": {
-    "dev": "vite",
+    "dev": "node scripts/copy-ocr-assets.mjs && vite",
+    "guard": "node scripts/leak-guard.mjs . --exclude package-lock.json",
+    "guard:history": "git log -p --all | node scripts/leak-guard.mjs --stdin",
+    "prebuild": "npm run guard && node scripts/copy-ocr-assets.mjs",
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview",
     "typecheck": "tsc --noEmit",
+    "pretest": "npm run guard",
     "test": "vitest run",
-    "sample:pdf": "node scripts/make-sample-pdf.mjs"
+    "sample:pdf": "node scripts/make-sample-pdf.mjs",
+    "sample:scan": "node scripts/make-scan-fixture.mjs"
   },
   "dependencies": {
     "pdfjs-dist": "^6.4.299",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
-    "zod": "^4.6.7"
+    "tesseract.js": "^7.0.0",
+    "zod": "^4.6.7",
+    "@tesseract.js-data/deu": "^1.0.0"
   },
   "devDependencies": {
     "@types/node": "^20.19.43",

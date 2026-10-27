@@ -201,6 +201,10 @@ export interface Rates {
   withBz: number;
   /** EUR per hour per surcharge category, rounded to cents like a payslip line */
   surcharge: Record<SurchargeCat, number>;
+  /** the same without rounding (used when only the amount is rounded) */
+  surchargeExact: Record<SurchargeCat, number>;
+  /** effective BZ percentage (also when the BZ is entered in EUR per hour) */
+  bzPct: number;
   overtime: number;
   /** § 3b Grundlohn per hour (base + Branchenzuschlag) and its caps */
   grundlohn: number;
@@ -209,13 +213,19 @@ export interface Rates {
 }
 
 export function rates(st: Settings): Rates {
-  const bz = cents((st.baseRate * st.bzPct) / 100);
+  const bz = st.bzMode === "eur" ? cents(st.bzEur) : cents((st.baseRate * st.bzPct) / 100);
   const withBz = cents(st.baseRate + bz);
   const surBase = st.surchargeBase === "base+bz" ? withBz : st.baseRate;
   const otBase = st.overtimeBase === "base+bz" ? withBz : st.baseRate;
   return {
     bz,
     withBz,
+    bzPct: st.bzMode === "eur" ? (st.baseRate > 0 ? Math.round((bz / st.baseRate) * 10000) / 100 : 0) : st.bzPct,
+    surchargeExact: {
+      night: (surBase * st.nightPct) / 100,
+      sunday: (surBase * st.sundayPct) / 100,
+      holiday: (surBase * st.holidayPct) / 100,
+    },
     surcharge: {
       night: cents((surBase * st.nightPct) / 100),
       sunday: cents((surBase * st.sundayPct) / 100),
@@ -262,12 +272,15 @@ export function contractMonthHours(weeklyHours: number): number {
 }
 
 const h2 = (minutes: number) => Math.round((minutes / 60) * 100) / 100;
+const h2r = (hours: number) => Math.round(hours * 100) / 100;
 
 /**
  * Gross pay for one month. `vacationHours` (Tarifurlaub hours from the payslip) count towards
- * the overtime threshold (MTV § 6.1) but are not paid by this calculation.
+ * the overtime threshold (MTV § 6.1) but are not paid by this calculation. With
+ * bzHours = "paid", the Branchenzuschlag is also due on those hours and on the AZK payout
+ * hours (`payoutHours`), as on a real zvoove payslip.
  */
-export function calcMonth(shifts: Shift[], month: string, st: Settings, vacationHours = 0): MonthResult {
+export function calcMonth(shifts: Shift[], month: string, st: Settings, vacationHours = 0, payoutHours = 0): MonthResult {
   const hours = monthHours(shifts, month, st);
   const worked = hours.worked / 60;
   const contractHours = contractMonthHours(st.weeklyHours);
@@ -276,16 +289,17 @@ export function calcMonth(shifts: Shift[], month: string, st: Settings, vacation
   const overtimeHours = Math.max(0, Math.floor(worked + vacationHours - overtimeThreshold + 1e-9));
   const baseHours = st.baseHoursMode === "contract" ? contractHours : h2(hours.worked);
   const rt = rates(st);
-  const line = (key: Component["key"], label: string, hrs: number, rate: number, taxFree = 0, svFree = 0): Component => {
-    const amount = cents(hrs * rate);
+  const bzHours = h2r(baseHours + (st.bzHours === "paid" ? vacationHours + payoutHours : 0));
+  const line = (key: Component["key"], label: string, hrs: number, rate: number, taxFree = 0, svFree = 0, exact?: number): Component => {
+    const amount = cents(hrs * (st.surchargeRounding === "amount" && exact !== undefined ? exact : rate));
     return { key, label, hours: hrs, rate, amount, taxFree: cents(Math.min(amount, taxFree)), svFree: cents(Math.min(amount, svFree)) };
   };
   const components: Component[] = [
     line("grundlohn", "Grundlohn (base)", baseHours, st.baseRate),
-    line("branchenzuschlag", `Branchenzuschlag ${st.bzPct} %`, baseHours, rt.bz),
-    line("night", `Nachtzuschlag ${st.nightPct} %`, h2(hours.night), rt.surcharge.night, hours.taxFree.night, hours.svFree.night),
-    line("sunday", `Sonntagszuschlag ${st.sundayPct} %`, h2(hours.sunday), rt.surcharge.sunday, hours.taxFree.sunday, hours.svFree.sunday),
-    line("holiday", `Feiertagszuschlag ${st.holidayPct} %`, h2(hours.holiday), rt.surcharge.holiday, hours.taxFree.holiday, hours.svFree.holiday),
+    line("branchenzuschlag", `Branchenzuschlag ${rt.bzPct} %`, bzHours, rt.bz),
+    line("night", `Nachtzuschlag ${st.nightPct} %`, h2(hours.night), rt.surcharge.night, hours.taxFree.night, hours.svFree.night, rt.surchargeExact.night),
+    line("sunday", `Sonntagszuschlag ${st.sundayPct} %`, h2(hours.sunday), rt.surcharge.sunday, hours.taxFree.sunday, hours.svFree.sunday, rt.surchargeExact.sunday),
+    line("holiday", `Feiertagszuschlag ${st.holidayPct} %`, h2(hours.holiday), rt.surcharge.holiday, hours.taxFree.holiday, hours.svFree.holiday, rt.surchargeExact.holiday),
     line("mehrarbeit", `Mehrarbeitszuschlag ${st.overtimePct} %`, overtimeHours, rt.overtime),
   ];
   const sum = (f: (c: Component) => number) => cents(components.reduce((a, c) => a + f(c), 0));

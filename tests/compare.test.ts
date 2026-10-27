@@ -53,13 +53,28 @@ describe("payslip compare", () => {
     expect(comparePayslip(r, p, { ...st, tolerance: 0.5 }).find((x) => x.key === "grundlohn")!.status).toBe("diff");
   });
 
-  it("checks the payslip's own arithmetic for lines the app does not calculate", () => {
+  it("lines the app does not calculate are info only, never a difference (arithmetic only as a hint)", () => {
     const p = matching();
     p.lines.tarifurlaub = { hours: 15, rate: 16.7, amount: 260.5 };
-    const row = comparePayslip(r, p, st).find((x) => x.key === "tarifurlaub")!;
-    expect(row.status).toBe("diff");
-    expect(row.expected).toBe(250.5);
-    expect(row.hints[0]).toMatch(/Ask payroll/);
+    p.lines.fahrgeld = { hours: 210, amount: 31.5 };
+    p.lines.freizeit = { hours: 4, rate: 14.5, amount: 58 };
+    const rows = comparePayslip(r, p, settings({ ...st, baseRate: 14.5 }));
+    for (const k of ["tarifurlaub", "fahrgeld", "freizeit"]) expect(rows.find((x) => x.key === k)!.status).toBe("info");
+    expect(rows.find((x) => x.key === "tarifurlaub")!.hints.join(" ")).toMatch(/250,50|250.50/);
+    expect(rows.find((x) => x.key === "freizeit")!.hints.join(" ")).toMatch(/base rate/);
+  });
+
+  it("other payslip lines are shown as info and count towards the expected Gesamtbrutto", () => {
+    const p = matching();
+    p.other = [
+      { label: "Weihnachtsgeld", category: "oneOff", amount: 100 },
+      { label: "Vorschuss", category: "deduction", amount: 50 },
+    ];
+    p.gesamtbrutto = r.total + 9 + 100;
+    const rows = comparePayslip(r, p, st);
+    expect(rows.find((x) => x.label === "Weihnachtsgeld")!.status).toBe("info");
+    expect(rows.find((x) => x.label === "Vorschuss")).toBeUndefined();
+    expect(rows.find((x) => x.key === "gesamtbrutto")!.status).toBe("ok");
   });
 
   it("Gesamtbrutto expectation includes Tarifurlaub, Freizeitauszahlung and Fahrgeld from the payslip", () => {

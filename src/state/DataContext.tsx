@@ -11,6 +11,7 @@ interface Ctx {
   removeShift: (id: string) => void;
   setPayslip: (month: string, p: Payslip | null) => void;
   replaceAll: (d: AppData) => void;
+  setLabelMap: (m: Record<string, string>) => void;
 }
 const DataCtx = createContext<Ctx | null>(null);
 
@@ -58,11 +59,12 @@ export function DataProvider({ children }: { children: ReactNode }) {
     []
   );
   const replaceAll = useCallback((d: AppData) => setData(d), []);
+  const setLabelMap = useCallback((labelMap: Record<string, string>) => setData((d) => ({ ...d, labelMap })), []);
 
   const loadError = initial.ok ? null : { backupKey: initial.backupKey, reason: initial.reason };
   const value = useMemo(
-    () => ({ data, loadError, saveError, setSettings, upsertShift, removeShift, setPayslip, replaceAll }),
-    [data, loadError, saveError, setSettings, upsertShift, removeShift, setPayslip, replaceAll]
+    () => ({ data, loadError, saveError, setSettings, upsertShift, removeShift, setPayslip, replaceAll, setLabelMap }),
+    [data, loadError, saveError, setSettings, upsertShift, removeShift, setPayslip, replaceAll, setLabelMap]
   );
   return <DataCtx.Provider value={value}>{children}</DataCtx.Provider>;
 }
