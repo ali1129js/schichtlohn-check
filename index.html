@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <meta name="theme-color" content="#10384f" />
+    <meta name="description" content="Shift pay checker for Zeitarbeit shift workers: surcharges, § 3b, payslip compare. Data stays on your device." />
+    <link rel="icon" href="./icon.svg" type="image/svg+xml" />
+    <title>Schichtlohn-Check</title>
+    <script>
+      /* Apply the saved theme before first paint (mirrors resolveTheme in src/lib/theme.ts). */
+      (function () {
+        var colors = { light: "#10384f", "dark-blue": "#07121f", "dark-grey": "#181818" };
+        var t = null;
+        try { t = JSON.parse(localStorage.getItem("schichtlohn.theme.v1") || "null"); } catch (e) {}
+        if (!colors.hasOwnProperty(t)) t = window.matchMedia && matchMedia("(prefers-color-scheme: dark)").matches ? "dark-blue" : "light";
+        document.documentElement.dataset.theme = t;
+        document.querySelector('meta[name="theme-color"]').setAttribute("content", colors[t]);
+      })();
+    </script>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

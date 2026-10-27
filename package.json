@@ -1,0 +1,31 @@
+{
+  "name": "schichtlohn-check",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Shift pay checker for Zeitarbeit shift workers (chemical/pharma). Gross only, data stays in the browser.",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc --noEmit && vite build",
+    "preview": "vite preview",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "sample:pdf": "node scripts/make-sample-pdf.mjs"
+  },
+  "dependencies": {
+    "pdfjs-dist": "^6.4.299",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "zod": "^4.6.7"
+  },
+  "devDependencies": {
+    "@types/node": "^20.19.43",
+    "@types/react": "^18.3.31",
+    "@types/react-dom": "^18.3.7",
+    "@vitejs/plugin-react": "^4.7.0",
+    "pdf-lib": "^1.17.1",
+    "typescript": "5.9",
+    "vite": "^6.4.5",
+    "vitest": "^4.1.12"
+  }
+}

@@ -1,0 +1,88 @@
+// Builds the made-up sample payslip (fake person, fake companies, fake numbers) used by the
+// "Try sample" button and the parser tests, plus an image-only PDF without a text layer.
+// Usage: npm run sample:pdf
+import { PDFDocument, StandardFonts, rgb } from "pdf-lib";
+import { writeFileSync } from "node:fs";
+
+const W = 595.28, H = 841.89;
+
+async function samplePayslip() {
+  const doc = await PDFDocument.create();
+  doc.setTitle("Musterabrechnung 03/2026 (frei erfunden)");
+  doc.setAuthor("Schichtlohn-Check sample");
+  doc.setCreationDate(new Date("2026-04-01T00:00:00Z"));
+  doc.setModificationDate(new Date("2026-04-01T00:00:00Z"));
+  const page = doc.addPage([W, H]);
+  const f = await doc.embedFont(StandardFonts.Helvetica);
+  const b = await doc.embedFont(StandardFonts.HelveticaBold);
+  let y = H - 50;
+  const t = (s, x, yy, opt = {}) => page.drawText(s, { x, y: yy, size: opt.size ?? 9, font: opt.bold ? b : f, color: rgb(0.1, 0.1, 0.1) });
+  const right = (s, xr, yy, opt = {}) => t(s, xr - (opt.bold ? b : f).widthOfTextAtSize(s, opt.size ?? 9), yy, opt);
+
+  t("Musterzeit Personal GmbH", 50, y, { bold: true, size: 12 });
+  right("Entgeltabrechnung", W - 50, y, { bold: true, size: 12 });
+  y -= 14; t("Musterallee 1, 12345 Musterstadt", 50, y);
+  y -= 24; t("Abrechnungsmonat: 03/2026", 50, y, { bold: true });
+  y -= 14; t("Arbeitnehmer: Max Beispiel", 50, y); t("Personal-Nr.: 000123", 330, y);
+  y -= 14; t("Einsatzbetrieb: Beispiel Pharma AG", 50, y);
+  y -= 14; t("Tarif: GVP/DGB", 50, y); t("Entgeltgruppe: EG 2", 200, y); t("Stundenlohn: 14,50", 330, y);
+
+  const col = { la: 50, bez: 90, std: 390, satz: 445, betrag: 510, st: 522, sv: 537 };
+  y -= 28;
+  t("Lohnart", col.la, y, { bold: true }); t("Bezeichnung", col.bez, y, { bold: true });
+  right("Std/Tage", col.std, y, { bold: true }); right("Satz €", col.satz, y, { bold: true });
+  right("Betrag €", col.betrag, y, { bold: true }); t("St", col.st, y, { bold: true }); t("SV", col.sv, y, { bold: true });
+  y -= 4; page.drawLine({ start: { x: 50, y }, end: { x: W - 40, y }, thickness: 0.5 });
+  const rows = [
+    ["1000", "Normalstunden (Grundlohn)", "152,00", "14,50", "2.204,00", "L", "L"],
+    ["1100", "Branchenzuschlag Chemie (TV BZ, Stufe 2, 15%)", "152,00", "2,18", "331,36", "L", "L"],
+    ["1200", "Mehrarbeitszuschlag 25%", "6,00", "3,63", "21,78", "L", "L"],
+    ["1300", "Nachtzuschlag 25% (§3b steuerfrei)", "40,00", "4,17", "166,80", "F", "F"],
+    ["1310", "Sonntagszuschlag 50% (§3b steuerfrei)", "16,00", "8,34", "133,44", "F", "F"],
+    ["1320", "Feiertagszuschlag 125% (§3b steuerfrei)", "8,00", "20,85", "166,80", "F", "F"],
+    ["1400", "Tarifurlaub / Urlaubsentgelt", "15,00", "16,70", "250,50", "L", "L"],
+    ["1500", "Freizeitauszahlung (AZK)", "10,00", "16,68", "166,80", "L", "L"],
+    ["1600", "Fahrgeld (steuerfrei)", "20 Tage", "3,00", "60,00", "F", "F"],
+  ];
+  for (const r of rows) {
+    y -= 15;
+    t(r[0], col.la, y); t(r[1], col.bez, y); right(r[2], col.std, y); right(r[3], col.satz, y);
+    right(r[4], col.betrag, y); t(r[5], col.st, y); t(r[6], col.sv, y);
+  }
+  y -= 6; page.drawLine({ start: { x: 50, y }, end: { x: W - 40, y }, thickness: 0.5 });
+  y -= 14; t("St/SV: L = pflichtig, F = frei", 50, y, { size: 7.5 });
+  y -= 20; t("AZK: Vortrag 32,50 | +6,00 | -10,00 | Saldo 28,50 h", 50, y);
+
+  y -= 26; t("Summen", 50, y, { bold: true });
+  const sums = [
+    ["Gesamtbrutto", "3.501,48"], ["davon steuerfrei", "527,04"], ["Steuerbrutto", "2.974,44"], ["SV-Brutto", "2.974,44"],
+    ["Lohnsteuer", "342,50"], ["Solidaritätszuschlag", "0,00"], ["Kirchensteuer", "0,00"], ["Krankenversicherung", "249,85"],
+    ["Rentenversicherung", "276,62"], ["Arbeitslosenversicherung", "38,67"], ["Pflegeversicherung", "53,54"],
+    ["Gesetzliches Netto", "2.540,30"], ["+ steuerfreie Bezüge", "527,04"], ["Auszahlung", "3.067,34"],
+  ];
+  for (const [k, v] of sums) { y -= 13; t(k, 50, y, { bold: k === "Auszahlung" || k === "Gesamtbrutto" }); right(v, 300, y, { bold: k === "Auszahlung" || k === "Gesamtbrutto" }); }
+  y -= 24; t("Jahreswerte: Stpfl. Brutto kumuliert 8.923,32 | Netto kumuliert 7.620,90", 50, y, { size: 8 });
+  y -= 30; t("MUSTERDOKUMENT: frei erfunden. Keine echte Person, keine echte Firma, keine echten Daten.", 50, y, { size: 8, bold: true });
+  return doc.save({ useObjectStreams: false });
+}
+
+async function imageOnly() {
+  const doc = await PDFDocument.create();
+  doc.setCreationDate(new Date("2026-04-01T00:00:00Z"));
+  doc.setModificationDate(new Date("2026-04-01T00:00:00Z"));
+  const page = doc.addPage([W, H]);
+  // a "scan": shapes only, no text layer
+  for (let i = 0; i < 30; i++) page.drawRectangle({ x: 50, y: H - 80 - i * 22, width: 300 + ((i * 37) % 180), height: 8, color: rgb(0.3, 0.3, 0.3) });
+  return doc.save();
+}
+
+const pdf = await samplePayslip();
+writeFileSync("tests/fixtures/sample-payslip.pdf", pdf);
+writeFileSync(
+  "src/import/samplePayslipPdf.ts",
+  `// GENERATED by scripts/make-sample-pdf.mjs. Made-up sample payslip (fake person, fake companies).\n` +
+    `// Bundled as base64 so "Try sample" works without any network request.\n` +
+    `export const SAMPLE_PAYSLIP_PDF_BASE64 =\n  "${Buffer.from(pdf).toString("base64")}";\n`
+);
+writeFileSync("tests/fixtures/scanned-no-text.pdf", await imageOnly());
+console.log("sample PDFs written", pdf.length);
