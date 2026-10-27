@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.3.1 – 2026-10-27
+
+- Fix: the payout check now counts a "+ steuerfreie Bezüge" line added after the net, so the
+  bundled sample shows all checks adding up (it showed "2 of 3").
+
 ## 0.3.0 – 2026-10-27
 
 - One automatic import: a single drop zone takes PDFs (text or scanned), JPG, PNG, WebP and HEIC.
