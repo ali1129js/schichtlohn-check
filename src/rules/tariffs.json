@@ -61,12 +61,12 @@
   },
   "bzChemie": {
     "label": "Branchenzuschlag Chemie (TV BZ Chemie) steps",
-    "source": "TV BZ Chemie, GVP version of 14.11.2024, § 2 (3) - copy hosted by a staffing agency",
-    "sourceUrl": "https://www.dremo.com/fileadmin/Media/PDF/Tarifvertraege/241114_GVP_TV_BZ_Chemie.pdf",
+    "source": "TV BZ Chemie (GVP/IGBCE, version of 14.11.2024), § 2 (3); step table as published by IGBCE",
+    "sourceUrl": "https://igbce.de/igbce/leiharbeit",
     "asOf": "2026-10-27",
     "verified": false,
     "kind": "exact",
-    "note": "Not confirmed from IG BCE or GVP directly. The text still refers to the old ETV BAP/iGZ, which were replaced by ETV DGB/GVP on 01.01.2026. Older versions paid the first step only after 6 weeks. The surcharge can be capped at the pay of a comparable customer employee minus 10 % (§ 2 (5)). Check your payslip / contract.",
+    "note": "Step table matches the IGBCE Leiharbeit page (checked 2026-10-27); the full contract text is not published for free by IGBCE or GVP. The text still refers to the old ETV BAP/iGZ, which were replaced by ETV DGB/GVP on 01.01.2026. Older versions paid the first step only after 6 weeks. The surcharge can be capped at the pay of a comparable customer employee minus 10 % (§ 2 (5)). Check your payslip / contract.",
     "steps": [
       {
         "fromMonths": 0,

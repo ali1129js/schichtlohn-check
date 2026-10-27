@@ -20,7 +20,12 @@ export function App() {
     window.addEventListener("hashchange", on);
     return () => window.removeEventListener("hashchange", on);
   }, []);
-  useEffect(() => window.scrollTo(0, 0), [tab]);
+  // Block body on purpose: newer Chrome returns a Promise from scrollTo, and an effect that
+  // returns a non-function makes React throw on cleanup, which unmounted the whole app on every
+  // tab change (tests/effects.test.ts).
+  useEffect(() => {
+    window.scrollTo(0, 0);
+  }, [tab]);
   return (
     <AppShell tab={tab} onTab={setTab}>
       {tab === "shifts" && <ShiftsPage month={month} onMonth={setMonth} />}

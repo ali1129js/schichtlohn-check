@@ -18,7 +18,9 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
   const [sysDark, setSysDark] = useState(prefersDark);
   const theme = resolveTheme(stored, sysDark);
 
-  useEffect(() => applyTheme(document, theme), [theme]);
+  useEffect(() => {
+    applyTheme(document, theme);
+  }, [theme]);
   useEffect(() => {
     if (typeof matchMedia !== "function") return;
     const mq = matchMedia(DARK_QUERY);

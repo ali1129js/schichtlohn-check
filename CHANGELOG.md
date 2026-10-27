@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.2.1 – 2026-10-27
+
+- Fix: clicking a tab crashed the app (blank page) in current Chrome, where `window.scrollTo`
+  returns a Promise that React treated as an effect cleanup. Effects now use block bodies; a test
+  guards against expression-bodied effects.
+- Sources: MTV DGB/GVP rules now link the DGB's Manteltarifvertrag PDF; TV BZ Chemie links the
+  IGBCE Leiharbeit page (step table matches) instead of a staffing agency's copy.
+- zod runs jitless, so the CSP no longer reports a blocked `eval` probe in the console.
+
 ## 0.2.0 – 2026-10-27
 
 - Payslip layouts as data: zvoove profile (confirmed against a real zvoove payslip), DATEV and

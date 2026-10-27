@@ -37,10 +37,12 @@ export const SRC = {
   estg3b: "https://www.gesetze-im-internet.de/estg/__3b.html",
   svev1: "https://www.gesetze-im-internet.de/svev/__1.html",
   etvGvp: "https://www.dgb.de/fileadmin/download_center/Uploads/2025-09-12_Entgelttarifvertrag_DGB-GVP_ab_01012026.pdf",
-  /** IG Metall "Tarifsammlung Leiharbeit 2026/2027": contains MTV DGB/GVP and ETV DGB/GVP */
-  mtvGvp: "https://produkte.igmetall.de/media/ba/64/28/1774604019/Tarifsammlung%20Leiharbeit%202026_2027_final.pdf",
-  /** TV BZ Chemie (GVP version of 14.11.2024) as published by a staffing agency, not by IG BCE/GVP */
-  tvBzChemie: "https://www.dremo.com/fileadmin/Media/PDF/Tarifvertraege/241114_GVP_TV_BZ_Chemie.pdf",
+  /** Manteltarifvertrag DGB/GVP of 20.05.2025 (in force 01.01.2026), published by the DGB.
+   * Also in IG Metall's "Tarifsammlung Leiharbeit 2026/2027" (MTV p. 12). */
+  mtvGvp: "https://www.dgb.de/fileadmin/download_center/Uploads/2025-05-20_Mateltarifvertrag.pdf",
+  /** IG BCE (party to TV BZ Chemie): Leiharbeit page with the Chemie step table. The full contract
+   * text is only in GVP's member download or on staffing-agency sites. */
+  tvBzChemie: "https://igbce.de/igbce/leiharbeit",
   lsth3b: "https://lsth.bundesfinanzministerium.de/lsth/2026/A-Einkommensteuergesetz/II-Einkommen-2-24b/2-Steuerfreie-Einnahmen-3-3c/Paragraf-3b/inhalt.html",
 } as const;
 
