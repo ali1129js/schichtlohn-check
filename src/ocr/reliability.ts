@@ -54,5 +54,10 @@ export function applyOcrReliability(p: ParsedPayslip, lines: TextLine[], cfg: Oc
     summary,
     rows: p.rows.map(mark),
     other: p.other.map(mark),
+    // a reading by OCR is never "sicher" as a whole either
+    quality: {
+      level: p.quality.level === "sicher" ? "pruefen" : p.quality.level,
+      reasons: [...p.quality.reasons, "Read by OCR (text recognition): compare the values with your payslip"],
+    },
   };
 }

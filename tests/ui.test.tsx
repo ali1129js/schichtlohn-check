@@ -10,7 +10,7 @@ import { settings, shift } from "./helpers";
 // Server-side render smoke test of every page (no DOM needed): catches render errors and checks
 // that the required notices are on screen.
 const data: AppData = {
-  schemaVersion: 2,
+  schemaVersion: 3,
   labelMap: {},
   settings: settings({ region: "BE" }),
   shifts: [shift("2026-03-07", "22:00", "06:00", [{ start: "02:00", minutes: 30 }]), shift("2026-03-08", "06:00", "14:00")],

@@ -3,7 +3,7 @@ import { CATEGORY_OPTIONS, isCategoryId } from "@/import/categories";
 import { CONFIDENCE_LABEL, parsePayslipLines, SUMMARY_LABEL, type Confidence, type SummaryField } from "@/import/parser";
 import { PdfImportError } from "@/import/pdfText";
 import { applyOther, applyPreview, buildOther, buildPreview, formatDe, rememberLabel, toLabelMap, type OtherRow, type PreviewField } from "@/import/preview";
-import { base64ToBytes, importPayslipFile, type ImportedPayslip } from "@/import/source";
+import { base64ToBytes, importPayslipFile, type ImportedPayslip, type ImportStep } from "@/import/source";
 import { OCR_CONFIG } from "@/ocr/config";
 import type { OcrProgress } from "@/ocr/types";
 import { applyOcrReliability } from "@/ocr/reliability";
@@ -28,7 +28,7 @@ interface Props {
   vlmOptIn?: boolean;
 }
 
-const SHOWN_ONLY: SummaryField[] = ["steuerbrutto", "svbrutto", "netto", "auszahlung", "gesStunden", "stundenlohn"];
+const SHOWN_ONLY: SummaryField[] = ["steuerbrutto", "svbrutto", "steuerAbzuege", "svAbzuege", "nettoAbzuege", "gesStunden", "stundenlohn"];
 
 export function PdfImport({ month, current, onApply, labelMap = {}, onLabelMap, vlmOptIn = false }: Props) {
   const fileRef = useRef<HTMLInputElement>(null);
@@ -42,16 +42,22 @@ export function PdfImport({ month, current, onApply, labelMap = {}, onLabelMap, 
   const [target, setTarget] = useState(month);
   const [applyErrors, setApplyErrors] = useState<string[]>([]);
   const [done, setDone] = useState<string | null>(null);
+  const [steps, setSteps] = useState<ImportStep[]>([]);
+  const [drag, setDrag] = useState(false);
 
   const run = async (load: () => Promise<{ bytes: Uint8Array; name: string }>) => {
     setBusy(true);
     setError(null);
     setDone(null);
     setApplyErrors([]);
+    setSteps([]);
     try {
       const { bytes, name } = await load();
       const r = await importPayslipFile(bytes, name, {
         labelMap: toLabelMap(labelMap),
+        // one list of steps; a repeated step (OCR on page 2) replaces the earlier entry
+        onStatus: (s) => setSteps((xs) => [...xs.filter((x) => x.id !== s.id), s]),
+        convertHeic: async (b) => (await import("@/import/heic")).convertHeicInBrowser(b),
         // OCR engine: loaded only when a scan or photo needs it
         ocr: async () => {
           const { detectEnv, startOcr } = await import("@/ocr/engines");
@@ -81,7 +87,7 @@ export function PdfImport({ month, current, onApply, labelMap = {}, onLabelMap, 
 
   const apply = () => {
     const base = target === month ? current : undefined;
-    const r = applyPreview(fields, base ?? { lines: {} });
+    const r = applyPreview(fields, base ?? { lines: {} }, result?.parsed.payType);
     if (!r.ok) {
       setApplyErrors(r.errors);
       return;
@@ -115,24 +121,51 @@ export function PdfImport({ month, current, onApply, labelMap = {}, onLabelMap, 
           <strong>Processed 100 % in your browser.</strong> The file is read on this device and never uploaded. The only downloads are the app's own OCR files, from this site, when a scan needs them.
         </p>
       </div>
-      <div className="row">
-        <label className="btn btn--primary file-btn">
-          Choose PDF or photo…
-          <input
-            ref={fileRef}
-            type="file"
-            accept="application/pdf,.pdf,image/jpeg,image/png,image/webp,image/heic,image/heif,.heic,.heif"
-            disabled={busy}
-            onChange={(e) => onFile(e.target.files?.[0])}
-          />
-        </label>
-        <button type="button" className="btn" disabled={busy} onClick={onSample}>
-          Try sample
-        </button>
-        {busy && !progress && (
-          <span className="muted" role="status">
-            Reading file…
-          </span>
+      <div
+        className={`drop-zone${drag ? " drop-zone--over" : ""}${busy ? " drop-zone--busy" : ""}`}
+        onDragOver={(e) => {
+          e.preventDefault();
+          if (!busy) setDrag(true);
+        }}
+        onDragLeave={() => setDrag(false)}
+        onDrop={(e) => {
+          e.preventDefault();
+          setDrag(false);
+          if (!busy) onFile(e.dataTransfer.files?.[0]);
+        }}
+      >
+        <p>
+          <strong>Drop your payslip here</strong> – PDF, scan or phone photo. The app decides by itself how to read it.
+        </p>
+        <div className="row">
+          <label className="btn btn--primary file-btn">
+            Choose file…
+            <input
+              ref={fileRef}
+              type="file"
+              aria-label="Choose payslip file"
+              accept="application/pdf,.pdf,image/jpeg,image/png,image/webp,image/heic,image/heif,.heic,.heif"
+              disabled={busy}
+              onChange={(e) => onFile(e.target.files?.[0])}
+            />
+          </label>
+          <button type="button" className="btn" disabled={busy} onClick={onSample}>
+            Try sample
+          </button>
+          {busy && !steps.length && (
+            <span className="muted" role="status">
+              Reading file…
+            </span>
+          )}
+        </div>
+        {steps.length > 0 && (
+          <ol className="steps small" aria-label="Import steps" aria-live="polite">
+            {steps.map((s, k) => (
+              <li key={s.id} className={busy && k === steps.length - 1 ? "steps__current" : "steps__done"}>
+                {s.label}
+              </li>
+            ))}
+          </ol>
         )}
       </div>
       {busy && progress && (
@@ -182,6 +215,27 @@ export function PdfImport({ month, current, onApply, labelMap = {}, onLabelMap, 
                 {result.parsed.checks.some((c) => !c.ok) ? " The line sums do not match the payslip totals: some numbers were probably misread." : ""}
               </div>
             </div>
+          )}
+          <p className="small">
+            Overall:{" "}
+            <span className={`badge ${CONF_CLASS[result.parsed.quality.level]}`} title={result.parsed.quality.reasons.join("\n")}>
+              {result.parsed.quality.level === "sicher" ? "reads cleanly" : result.parsed.quality.level === "pruefen" ? "check" : "uncertain"}
+            </span>{" "}
+            {result.parsed.payType === "salary" ? (
+              <span className="badge badge--blue" title={result.parsed.payTypeReason}>monthly salary: totals compared only</span>
+            ) : (
+              <span className="badge" title={result.parsed.payTypeReason}>hourly wage</span>
+            )}
+          </p>
+          {result.parsed.quality.reasons.length > 0 && (
+            <details>
+              <summary className="small">Why this rating</summary>
+              <ul className="small list">
+                {result.parsed.quality.reasons.map((r) => (
+                  <li key={r}>{r}</li>
+                ))}
+              </ul>
+            </details>
           )}
           {result.parsed.month && (
             <p className="small">
@@ -340,6 +394,18 @@ export function PdfImport({ month, current, onApply, labelMap = {}, onLabelMap, 
                 {result.parsed.info.map((i, k) => (
                   <li key={k}>
                     {i.label}: {i.value}
+                  </li>
+                ))}
+              </ul>
+            </details>
+          )}
+          {result.parsed.ignored.length > 0 && (
+            <details>
+              <summary>Sum rows (Σ / Gesamtsumme, not used)</summary>
+              <ul className="small list">
+                {result.parsed.ignored.map((l, k) => (
+                  <li key={k}>
+                    <code>{l.text}</code> <span className="muted">– {l.reason}</span>
                   </li>
                 ))}
               </ul>

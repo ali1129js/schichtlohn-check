@@ -32,6 +32,8 @@ export const MIN_TEXT_CHARS = 20;
 
 export interface ImportedPayslip {
   fileName: string;
+  /** detected from the file's first bytes, not its name */
+  fileKind: FileKind;
   parsed: ParsedPayslip;
   /** the extracted text lines, for the "show text" disclosure */
   text: string[];
@@ -62,7 +64,26 @@ export function sniffFile(bytes: Uint8Array): FileKind {
 
 const MIME: Record<Exclude<FileKind, "pdf" | "unknown">, string> = { jpeg: "image/jpeg", png: "image/png", webp: "image/webp", heic: "image/heic" };
 
+/** one step of the automatic import, shown in the drop zone while it runs */
+export interface ImportStep {
+  id: "detect" | "text" | "ocr" | "heic" | "layout" | "paytype" | "checks";
+  label: string;
+}
+
+const KIND_LABEL: Record<FileKind, string> = {
+  pdf: "PDF",
+  jpeg: "JPG photo",
+  png: "PNG image",
+  webp: "WebP image",
+  heic: "HEIC photo (iPhone)",
+  unknown: "unknown file type",
+};
+
 export interface ImportOptions {
+  /** progress of the automatic pipeline: detect → text → OCR → layout → pay type → checks */
+  onStatus?: (step: ImportStep) => void;
+  /** HEIC photos: convert to an image the OCR can read; throws with a message when impossible */
+  convertHeic?: (bytes: Uint8Array) => Promise<{ bytes: Uint8Array; mime: string }>;
   pdfjs?: () => Promise<PdfJsLib>;
   /** text recognition; without it, scans are rejected with a clear message */
   ocr?: () => Promise<OcrSession>;
@@ -79,6 +100,8 @@ export async function importPayslipFile(data: ArrayBuffer | Uint8Array, fileName
   const bytes = data instanceof Uint8Array ? data : new Uint8Array(data);
   if (bytes.byteLength > MAX_PDF_BYTES) throw new PdfImportError("too-big", "The file is larger than 15 MB. Payslips are usually much smaller.");
   const kind = sniffFile(bytes);
+  const status = (id: ImportStep["id"], label: string) => opts.onStatus?.({ id, label });
+  status("detect", `File type: ${KIND_LABEL[kind]}`);
   const pages: ImportedPayslip["pages"] = [];
   let lines: TextLine[] = [];
   let producer = "";
@@ -91,6 +114,7 @@ export async function importPayslipFile(data: ArrayBuffer | Uint8Array, fileName
   };
   try {
     if (kind === "pdf") {
+      status("text", "Reading text…");
       const doc = await openPdf(bytes, await (opts.pdfjs ?? loadPdfJs)());
       try {
         const textPages = await textPagesFromDocument(doc, cfg.maxPages);
@@ -102,6 +126,7 @@ export async function importPayslipFile(data: ArrayBuffer | Uint8Array, fileName
             lines.push(...textPages[i]!);
             continue;
           }
+          status("ocr", `Running OCR (page ${i + 1})…`);
           const o = await getOcr();
           pages.push({ page: i + 1, method: "ocr", reason: q.reason });
           lines.push(...(await o.recognizePdfPage(await doc.getPage(i + 1), i + 1)));
@@ -111,9 +136,20 @@ export async function importPayslipFile(data: ArrayBuffer | Uint8Array, fileName
       }
     } else if (kind !== "unknown") {
       if (!opts.ocr) throw new PdfImportError("not-pdf", `"${fileName}" is an image; text recognition is not available here.`);
+      let img = bytes;
+      let mime = MIME[kind];
+      if (kind === "heic" && opts.convertHeic) {
+        status("heic", "Converting HEIC photo…");
+        try {
+          ({ bytes: img, mime } = await opts.convertHeic(bytes));
+        } catch (e) {
+          throw new PdfImportError("unreadable", e instanceof Error ? e.message : "The HEIC photo could not be opened.");
+        }
+      }
+      status("ocr", "Running OCR…");
       const o = await getOcr();
       pages.push({ page: 1, method: "ocr", reason: "photo or image file" });
-      lines = await o.recognizeImage(bytes, MIME[kind]);
+      lines = await o.recognizeImage(img, mime);
     } else throw new PdfImportError("not-pdf", `"${fileName}" is not a PDF or an image (JPG, PNG, WebP, HEIC).`);
   } finally {
     await ocr?.terminate();
@@ -129,10 +165,14 @@ export async function importPayslipFile(data: ArrayBuffer | Uint8Array, fileName
     );
   let parsed = parsePayslipLines(lines, { labelMap: opts.labelMap ?? {}, producer });
   if (usedOcr) parsed = applyOcrReliability(parsed, lines, cfg.reliability);
+  status("layout", parsed.profile.id === "generic" ? "No known layout: read with the generic rules" : `Recognised layout: ${parsed.profile.name}`);
+  status("paytype", parsed.payType === "salary" ? "Pay type: monthly salary (totals compared only)" : "Pay type: hourly wage");
+  const failed = parsed.checks.filter((c) => !c.ok).length;
+  status("checks", parsed.checks.length ? `Checks: ${parsed.checks.length - failed} of ${parsed.checks.length} add up` : "Checks: no totals to compare");
   if (foundCount(parsed) === 0)
     throw new PdfImportError("no-payslip", "Text was found, but no payslip lines were recognised. Please type the amounts in by hand.");
   const method = !usedOcr ? "text" : pages.every((p) => p.method === "ocr") ? "ocr" : "mixed";
-  return { fileName, parsed, text, lines, producer, method, pages, ocrConfidence: usedOcr ? meanConfidence(lines.filter((l) => l.ocr)) : null, ocrEngine };
+  return { fileName, fileKind: kind, parsed, text, lines, producer, method, pages, ocrConfidence: usedOcr ? meanConfidence(lines.filter((l) => l.ocr)) : null, ocrEngine };
 }
 
 export function looksLikePdf(bytes: Uint8Array): boolean {

@@ -11,7 +11,7 @@ const zv = () => parsePayslipLines(textLinesFromItems(zvooveItems()));
 
 describe("layout profiles are data", () => {
   it("loads every profile file and validates it", () => {
-    expect(PROFILE_DATA.map((p) => p.id).sort()).toEqual(["datev", "landwehr", "zvoove"]);
+    expect(PROFILE_DATA.map((p) => p.id).sort()).toEqual(["datev", "landwehr", "lexware-lohn-gehalt", "lohn-gehaltsabrechnung-mmyyyy", "zvoove"]);
     for (const p of PROFILE_DATA) expect(ProfileSchema.safeParse(p).success).toBe(true);
     expect(PROFILES.find((p) => p.id === "zvoove")?.checked).toBe(true);
   });

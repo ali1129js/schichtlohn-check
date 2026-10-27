@@ -10,11 +10,15 @@ typed in or imported from the payslip PDF.
   `schemaVersion` and migrations; old data is migrated, never wiped). The production build ships a CSP
   that allows only this site's own origin (`connect-src 'self'`, `worker-src 'self' blob:`), and tests
   assert that no third-party origin appears in the CSP, the OCR config or `src/`.
-- **Payslip import runs 100 % in the browser.** PDFs and photos/scans (PDF, JPG, PNG, WebP; HEIC where
-  the browser can decode it). Per page the PDF text layer is used when it looks sane; otherwise the page
-  is rendered at about 300 dpi and read with OCR.
+- **Payslip import runs 100 % in the browser, in one drop zone.** PDFs and photos/scans (PDF, JPG, PNG,
+  WebP; HEIC only where the browser can decode it, i.e. Safari). The file type is read from the bytes.
+  Per page the PDF text layer is used when it looks sane; otherwise the page is rendered at about
+  300 dpi and read with OCR. Status steps show type → text/OCR → layout → pay type → checks.
+- **Monthly salary or hourly wage is detected.** Salary payslips compare totals only (rows vs. gross,
+  gross − deductions vs. net as printed); per-hour, Branchenzuschlag and surcharge checks are skipped.
+  The app never calculates net pay or tax.
 - **Layouts are data.** `src/parser/profiles/*.json` (zvoove confirmed against a real zvoove payslip;
-  DATEV and Landwehr basic coverage) plus a generic fallback and a synonym dictionary
+  DATEV, Landwehr, "Lohn+Gehalt pro" and "Lohn- und Gehaltsabrechnung MM.YYYY" from synthetic fixtures) plus a generic fallback and a synonym dictionary
   (`src/parser/synonyms.json`). Unknown lines are shown with a category you pick; the choice is
   remembered. Totals are cross-checked, nothing is applied automatically.
 - **OCR engines are pluggable** (`src/ocr/engines/*`, chosen by `src/ocr/ocr-config.json` order plus
@@ -90,7 +94,9 @@ overtime on the base rate only, and "EG 2" (the GVP table has 2a/2b).
 
 ## Known gaps
 
-- DATEV and Landwehr profiles are built from public examples and synthetic fixtures, not confirmed against real slips.
+- DATEV, Landwehr and the two layouts added in 0.3.0 are built from public examples and synthetic fixtures, not confirmed against real slips.
+- HEIC photos open only in browsers that decode HEIC themselves (Safari); elsewhere export a JPG.
+- Phone photos of dense tables (small print, uneven light) still OCR poorly; values are marked "check" or "uncertain".
 - Branchenzuschlag on Urlaub/holiday pay is not confirmed; the night/Sunday overlap rule is marked "likely".
 - Fahrgeld quantity semantics (days vs km) differ between employers.
 - OCR makes typical mistakes (lost decimal commas, misread letters); always check every value.

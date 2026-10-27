@@ -459,3 +459,24 @@ details summary { cursor: pointer; color: var(--accent); }
 .preset { flex-direction: column; gap: 0; }
 .shift-edit { border: 1px solid var(--border); border-radius: var(--radius); padding: 12px; display: flex; flex-direction: column; gap: 10px; background: var(--surface); }
 @media (max-width: 380px) { .cal-day { min-height: 52px; padding: 3px; } .cal-holname { display: none; } }
+
+/* one drop zone for every payslip file (PDF, scan, photo); colours from the theme variables, so
+   light and dark mode both work */
+.drop-zone {
+  border: 2px dashed var(--border);
+  border-radius: 10px;
+  padding: 1rem;
+  background: var(--surface);
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  transition: border-color 0.15s, background 0.15s;
+}
+.drop-zone p { margin: 0; }
+.drop-zone--over { border-color: var(--accent); background: var(--info-soft); }
+.drop-zone--busy { opacity: 0.9; }
+.steps { margin: 0; padding-left: 1.3rem; display: grid; gap: 0.15rem; }
+.steps__done { color: var(--muted); }
+.steps__done::marker { color: var(--ok-border); }
+.steps__current { color: var(--text); font-weight: 600; }
+@media (prefers-reduced-motion: reduce) { .drop-zone { transition: none; } }

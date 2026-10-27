@@ -27,7 +27,11 @@
   },
   "preprocess": {
     "grayscale": true,
-    "threshold": "otsu"
+    "threshold": "otsu",
+    "photos": {
+      "flatten": true,
+      "threshold": "none"
+    }
   },
   "reliability": {
     "pruefenMinConfidence": 80

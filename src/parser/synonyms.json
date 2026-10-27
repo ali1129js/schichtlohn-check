@@ -18,7 +18,7 @@
       "label": "One-off payment (Weihnachtsgeld, Urlaubsgeld, Sonderzahlung)",
       "quantity": "units",
       "gross": true,
-      "match": "weihnachtsgeld|urlaubsgeld|jahressonderzahlung|sonderzahlung|einmalzahlung|prämie|praemie|inflationsausgleich|bonus|gratifikation|13\\.\\s*monat"
+      "match": "weihnachtsgeld|urlaubsgeld|jahressonderzahlung|sonderzahlung|einmalzahlung|prämie|praemie|inflationsausgleich|bonus|gratifikation|13\\.\\s*monat|boni\\b"
     },
     {
       "id": "holidayPay",
@@ -124,7 +124,7 @@
       "label": "Deduction / net item (Vorschuss, VWL)",
       "quantity": "units",
       "gross": false,
-      "match": "vorschuss|\\bvwl\\b|vermögenswirksam|pfändung|darlehen|einbehalt|verrechnung|abschlagszahlung"
+      "match": "vorschuss|\\bvwl\\b|vermögenswirksam|pfändung|darlehen|einbehalt|verrechnung|abschlagszahlung|winterbeschäftigungs\\s*-?\\s*umlage|\\bumlage\\b"
     },
     {
       "id": "base",
@@ -132,7 +132,7 @@
       "line": "grundlohn",
       "quantity": "hours",
       "gross": true,
-      "match": "normal\\s*-?\\s*stunden|grundlohn|grundvergütung|grundentgelt|stundenlohn|lohn\\s*\\/?\\s*std|arbeitsstunden|tarif\\s*-?\\s*stunden|tariflohn|monatslohn|gehalt|arbeitslohn|zeitlohn|ist\\s*-?\\s*stunden|geleistete\\s+stunden"
+      "match": "normal\\s*-?\\s*stunden|grundlohn|grundvergütung|grundentgelt|stundenlohn|lohn\\s*\\/?\\s*std|arbeitsstunden|tarif\\s*-?\\s*stunden|tariflohn|monatslohn|gehalt|arbeitslohn|zeitlohn|ist\\s*-?\\s*stunden|geleistete\\s+stunden|^lohn$"
     },
     {
       "id": "other",

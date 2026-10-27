@@ -4,6 +4,7 @@ import json from "./ocr-config.json";
 /** a path relative to the app's own origin: never a third-party URL */
 const OwnPath = z.string().regex(/^[\w.-]+(?:\/[\w.-]+)*\/?$/, "must be a relative path on this site");
 const OwnDir = OwnPath.refine((s) => s.endsWith("/"), "must end with /");
+const Threshold = z.union([z.literal("otsu"), z.literal("none"), z.number().int().min(1).max(254)]);
 
 export const TesseractConfigSchema = z.object({
   enabled: z.boolean(),
@@ -45,7 +46,12 @@ export const OcrConfigSchema = z.object({
     minCleanRatio: z.number().min(0).max(1),
     keywords: z.array(z.string().min(2)).min(1),
   }),
-  preprocess: z.object({ grayscale: z.boolean(), threshold: z.union([z.literal("otsu"), z.literal("none"), z.number().int().min(1).max(254)]) }),
+  preprocess: z.object({
+    grayscale: z.boolean(),
+    threshold: Threshold,
+    /** phone photos: even out the lighting; threshold for photos (default none) */
+    photos: z.object({ flatten: z.boolean(), threshold: Threshold }).optional(),
+  }),
   reliability: z.object({ pruefenMinConfidence: z.number().min(0).max(100) }),
   engines: z.object({
     order: z.array(z.enum(ENGINE_IDS)).min(1),

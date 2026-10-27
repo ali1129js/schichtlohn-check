@@ -1,5 +1,25 @@
 # Changelog
 
+## 0.3.0 – 2026-10-27
+
+- One automatic import: a single drop zone takes PDFs (text or scanned), JPG, PNG, WebP and HEIC.
+  The file type is read from the bytes; PDF pages use their text layer, else OCR; photos go
+  straight to OCR. Status steps: file type → text / OCR → layout → pay type → checks.
+- HEIC: decoded by the browser itself where possible (Safari); other browsers get a clear message.
+  No converter library (they need `eval`, which the CSP `'self'` does not allow).
+- Layout scoring with two new data profiles (not yet checked): "Lohn+Gehalt pro" (Brutto-Netto-
+  Bezüge) and "Lohn- und Gehaltsabrechnung MM.YYYY" with a Jahressummen column.
+- Monthly salary detected: per-hour, Branchenzuschlag and surcharge checks are skipped, only the
+  totals are compared (rows vs. gross, gross − deductions vs. net as printed). No tax calculation.
+- Parser: year-to-date column kind, left-side year-to-date blocks, two-line headers, Σ /
+  Gesamtsumme rows ignored (Σ used as gross only when none is printed, marked "check"), values
+  below their labels, Monat | Jahr blocks, deductions / net / payout totals with cross-checks,
+  100 % holiday hours read as paid holiday, more OCR number forms, overall rating with reasons.
+- OCR: photos get illumination flattening instead of a global threshold; border noise becomes
+  cell borders; split labels ("Steuer - Brutto") are joined.
+- Storage `schemaVersion` 3 (payslips may carry pay type, deductions, net, payout); saved data is
+  migrated, nothing is wiped.
+
 ## 0.2.1 – 2026-10-27
 
 - Fix: clicking a tab crashed the app (blank page) in current Chrome, where `window.scrollTo`

@@ -4,7 +4,10 @@ import type { Confidence, ParsedPayslip } from "./parser";
 
 export type PreviewTarget =
   | { kind: "line"; line: PayslipLine; part: "hours" | "rate" | "amount" }
-  | { kind: "summary"; field: "gesamtbrutto" | "steuerfrei" | "azkSaldo" };
+  | { kind: "summary"; field: SummaryTarget };
+
+/** totals that are saved on the payslip (deductions, net and payout only to cross-check) */
+export type SummaryTarget = "gesamtbrutto" | "steuerfrei" | "azkSaldo" | "abzuege" | "netto" | "auszahlung";
 
 export interface PreviewField {
   id: string;
@@ -61,8 +64,15 @@ export function buildPreview(p: ParsedPayslip): PreviewField[] {
       });
     }
   }
-  const S = { gesamtbrutto: "Gesamtbrutto", steuerfrei: "davon steuerfrei", azkSaldo: "AZK Saldo (h)" } as const;
-  for (const f of ["gesamtbrutto", "steuerfrei", "azkSaldo"] as const) {
+  const S: Record<SummaryTarget, string> = {
+    gesamtbrutto: "Gesamtbrutto",
+    steuerfrei: "davon steuerfrei",
+    azkSaldo: "AZK Saldo (h)",
+    abzuege: "Gesetzliche Abzüge (as printed)",
+    netto: "Netto (as printed)",
+    auszahlung: "Auszahlung (as printed)",
+  };
+  for (const f of ["gesamtbrutto", "steuerfrei", "azkSaldo", "abzuege", "netto", "auszahlung"] as const) {
     const v = p.summary[f];
     if (!v) continue;
     out.push({
@@ -84,9 +94,9 @@ export function buildPreview(p: ParsedPayslip): PreviewField[] {
 export type ApplyResult = { ok: true; payslip: Payslip; applied: number } | { ok: false; errors: string[] };
 
 /** Apply the selected (possibly edited) values onto a payslip. Unselected fields stay as they were. */
-export function applyPreview(fields: PreviewField[], base: Payslip): ApplyResult {
+export function applyPreview(fields: PreviewField[], base: Payslip, payType?: Payslip["payType"]): ApplyResult {
   const errors: string[] = [];
-  const next: Payslip = { ...base, lines: { ...base.lines } };
+  const next: Payslip = { ...base, lines: { ...base.lines }, ...(payType ? { payType } : {}) };
   let applied = 0;
   for (const f of fields) {
     if (!f.selected) continue;

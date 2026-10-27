@@ -5,7 +5,7 @@ import { PAYSLIP_LINE_LABEL, type Payslip, type PayslipLine, type Settings } fro
 export type CompareStatus = "ok" | "diff" | "no-payslip" | "info";
 
 export interface CompareRow {
-  key: PayslipLine | "gesamtbrutto" | "steuerfrei" | `other:${number}`;
+  key: PayslipLine | "gesamtbrutto" | "steuerfrei" | "netto" | `other:${number}`;
   label: string;
   expected: number | null;
   actual: number | null;
@@ -79,6 +79,53 @@ function hintsFor(key: Component["key"], c: Component, p: Payslip, r: MonthResul
   return h.filter(Boolean);
 }
 
+type RowFn = (key: CompareRow["key"], label: string, expected: number | null, actual: number | undefined, hints: () => string[]) => CompareRow;
+
+/** weeks per month on average (52 / 12) */
+const WEEKS_PER_MONTH = 4.33;
+
+/**
+ * Monthly salary: there are no hours × rate to recalculate, so the per-hour, Branchenzuschlag and
+ * surcharge checks are skipped. Only the payslip's own totals are compared: the lines add up to
+ * the gross, and gross − deductions (as printed) = net. No tax or net is calculated.
+ */
+function compareSalary(p: Payslip, st: Settings, row: RowFn): CompareRow[] {
+  const rows: CompareRow[] = [];
+  const salary = p.lines.grundlohn?.amount;
+  const implied = salary !== undefined && st.weeklyHours > 0 ? cents(salary / (st.weeklyHours * WEEKS_PER_MONTH)) : null;
+  rows.push({
+    key: "grundlohn",
+    label: "Monatsgehalt – nur Summenvergleich",
+    expected: null,
+    actual: salary ?? null,
+    diff: null,
+    status: salary === undefined ? "no-payslip" : "info",
+    hints: [
+      "A monthly salary: hours, Branchenzuschlag and surcharges are not recalculated; only the totals of the payslip are compared.",
+      ...(implied !== null ? [`Implied hourly rate (info only): ${fmt(implied)} €/h at ${fmt(st.weeklyHours)} h/week × ${WEEKS_PER_MONTH} weeks.`] : []),
+    ],
+  });
+  const lineSum = Object.values(p.lines).reduce((a, l) => a + (l?.amount ?? 0), 0);
+  const others = (p.other ?? []).filter((o) => o.category !== "deduction" && o.amount !== undefined);
+  others.forEach((o, i) =>
+    rows.push({ key: `other:${i}`, label: o.label, expected: null, actual: o.amount ?? null, diff: null, status: "info", hints: ["Taken from the payslip as it is."] })
+  );
+  const hasLines = salary !== undefined || others.length > 0;
+  rows.push(
+    row("gesamtbrutto", "Gesamtbrutto (total gross)", hasLines ? cents(lineSum + others.reduce((a, o) => a + (o.amount ?? 0), 0)) : null, p.gesamtbrutto, () => [
+      "Expected = the sum of the payslip lines as taken from the payslip.",
+      "A line may be missing from the import (check the preview), or the payslip contains back pay or corrections.",
+    ])
+  );
+  if (p.netto !== undefined)
+    rows.push(
+      row("netto", "Netto (gross − deductions, as printed)", p.gesamtbrutto !== undefined && p.abzuege !== undefined ? cents(p.gesamtbrutto - Math.abs(p.abzuege)) : null, p.netto, () => [
+        "Only the payslip's own figures are subtracted; the app does not calculate tax or social insurance.",
+      ])
+    );
+  return rows;
+}
+
 export function comparePayslip(r: MonthResult, p: Payslip, st: Settings): CompareRow[] {
   const tol = st.tolerance;
   const row = (key: CompareRow["key"], label: string, expected: number | null, actual: number | undefined, hints: () => string[]): CompareRow => {
@@ -88,6 +135,7 @@ export function comparePayslip(r: MonthResult, p: Payslip, st: Settings): Compar
     const bad = Math.abs(diff) > tol + 1e-9;
     return { key, label, expected, actual, diff, status: bad ? "diff" : "ok", hints: bad ? hints() : [] };
   };
+  if (p.payType === "salary") return compareSalary(p, st, row);
   const rows: CompareRow[] = [];
   const map: [Component["key"], PayslipLine][] = [
     ["grundlohn", "grundlohn"],

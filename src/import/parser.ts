@@ -64,7 +64,20 @@ export interface ParsedRow extends ParsedLine {
   taxFree?: boolean;
 }
 
-export type SummaryField = "gesamtbrutto" | "steuerbrutto" | "svbrutto" | "steuerfrei" | "netto" | "auszahlung" | "azkSaldo" | "gesStunden" | "stundenlohn";
+export type SummaryField =
+  | "gesamtbrutto"
+  | "steuerbrutto"
+  | "svbrutto"
+  | "steuerfrei"
+  | "netto"
+  | "auszahlung"
+  | "abzuege"
+  | "steuerAbzuege"
+  | "svAbzuege"
+  | "nettoAbzuege"
+  | "azkSaldo"
+  | "gesStunden"
+  | "stundenlohn";
 
 export const SUMMARY_LABEL: Record<SummaryField, string> = {
   gesamtbrutto: "Gesamtbrutto",
@@ -73,13 +86,17 @@ export const SUMMARY_LABEL: Record<SummaryField, string> = {
   steuerfrei: "davon steuerfrei",
   netto: "Netto",
   auszahlung: "Auszahlung",
+  abzuege: "Gesetzliche Abzüge",
+  steuerAbzuege: "Steuerrechtl. Abzüge",
+  svAbzuege: "SV-rechtl. Abzüge",
+  nettoAbzuege: "Sonstige Netto-Be-/Abzüge",
   azkSaldo: "AZK / Gleitzeit balance",
   gesStunden: "Total hours",
   stundenlohn: "Stundenlohn",
 };
 
 export interface CrossCheck {
-  id: "gross" | "taxable" | "svable" | "taxfree";
+  id: "gross" | "taxable" | "svable" | "taxfree" | "net" | "payout";
   label: string;
   /** sum of the table rows */
   rows: number;
@@ -88,8 +105,24 @@ export interface CrossCheck {
   ok: boolean;
 }
 
+/** hourly wage (per-hour checks apply) or monthly salary (only the totals can be compared) */
+export type PayType = "hourly" | "salary";
+
+/** overall confidence of the import, with the reasons in plain words */
+export interface ImportQuality {
+  level: Confidence;
+  reasons: string[];
+}
+
 export interface ParsedPayslip {
-  profile: { id: ProfileId; name: string; checked: boolean; note: string };
+  profile: { id: ProfileId; name: string; checked: boolean; note: string; score: number };
+  /** every layout profile with its marker score, best first */
+  profileScores: { id: ProfileId; name: string; score: number }[];
+  payType: PayType;
+  payTypeReason: string;
+  quality: ImportQuality;
+  /** lines that were read but deliberately not used (Σ / Gesamtsumme rows that repeat values) */
+  ignored: { text: string; reason: string }[];
   /** how the wage-type table was read */
   table: "columns" | "heuristic" | "none";
   /** YYYY-MM */
@@ -140,11 +173,25 @@ export function parseGermanNumber(s: string): number | null {
   return Number.isFinite(n) ? (neg ? -n : n) : null;
 }
 
-const tokNum = (s: string) => parseGermanNumber(s.replace(/[;|]+$/, ""));
+/**
+ * A number token. OCR noise around it is removed ("„123,45", "123,45|") and an OCR'd decimal
+ * point is accepted when it cannot be a thousands separator ("123.45", "1.234.56": 2 digits).
+ */
+export const tokNum = (s: string) => {
+  const t = s.replace(/^[„"'‚‘’_]+/, "").replace(/[;|_'’]+$/, "");
+  const n = parseGermanNumber(t);
+  if (n !== null) return n;
+  const m = /^([+-]?(?:\d{3,}|\d{1,3}(?:\.\d{3})+))\.(\d{2})(-?)$/.exec(t);
+  if (m) return parseGermanNumber(`${m[1]},${m[2]}${m[3]}`);
+  // OCR lost the decimal comma after a thousands group: "1.23456" can only be 1.234,56
+  const k = /^(\d{1,3}\.\d{3})(\d{2})(-?)$/.exec(t);
+  return k ? parseGermanNumber(`${k[1]},${k[2]}${k[3]}`) : null;
+};
 const r2 = (n: number) => Math.round(n * 100) / 100;
 const near = (a: number, b: number) => Math.abs(a - b) <= Math.max(0.02, Math.abs(b) * 0.001);
 const UNIT_RE = /^(tage?|std\.?|h|stk\.?|km|€|eur|%)$/i;
-const FLAG_RE = /^[A-Z]{1,2}$/;
+/** flag letters (L, F, J, N, E, S, M, V ...) and "*" in the St / SV / GB columns */
+const FLAG_RE = /^(?:[A-Z]{1,2}|\*)$/;
 
 // ------------------------------------------------------------------ labels
 
@@ -179,6 +226,18 @@ const TOTAL_RULES: TotalRule[] = [
     re: /^(?:davon\s+steuerfrei|steuerfrei|steuerfreie?\s+(?:bezüge|zuschläge|anteile?|beträge|zahlungen)|stfrei|st\s*-?\s*frei)$/,
     confidence: "sicher",
   },
+  {
+    field: "abzuege",
+    re: /^(?:summe\s+(?:der\s+)?gesetzl(?:ichen?|icher|\.)?\s*abzüge|gesetzliche\s+abzüge|summe\s+abzüge|abzüge\s+gesamt|gesamt\s*-?\s*abzüge)$/,
+    confidence: "sicher",
+  },
+  { field: "steuerAbzuege", re: /^(?:steuerrechtl(?:iche)?\.?\s*abzüge|steuer\s*-?\s*abzüge|summe\s+steuern?)$/, confidence: "sicher" },
+  { field: "svAbzuege", re: /^(?:sv\s*-?\s*rechtl(?:iche)?\.?\s*abzüge|sv\s*-?\s*abzüge|summe\s+sv(?:\s*-?\s*beiträge)?|sozialversicherungs\s*-?\s*abzüge)$/, confidence: "sicher" },
+  {
+    field: "nettoAbzuege",
+    re: /^(?:summe\s+sonst(?:ige)?\.?\s*abzüge(?:\s*\/\s*zuzahlungen)?|sonstige\s+abzüge|netto\s*-?\s*abzüge|(?:summe\s+)?netto\s*-?\s*be\s*-?\s*\/\s*abzüge)$/,
+    confidence: "sicher",
+  },
   { field: "netto", re: /^(?:gesetzliches\s+netto|netto|nettolohn|netto\s*-?\s*bezüge|nettoverdienst|netto\s*-?\s*entgelt|netto\s*-?\s*betrag)$/, confidence: "sicher" },
   {
     field: "auszahlung",
@@ -193,7 +252,10 @@ const TOTAL_RULES: TotalRule[] = [
 
 /** net-side values that are shown for information only */
 const INFO_LABEL =
-  /^(?:lohnst|lohnsteuer|kirch|kist|soli|solidarit|kranken|kv\b|kv-|renten|rentvers|rv\b|rv-|arbeitslos|arblos|av\b|pflege|pv\b|kammer|umlage|sachbez|jahr-?\s*ausgl|lst-?\s*jahres|vwl|vorschuss|pfändung|abzüge|end-?\s*summe|summe\s+abzüge|netto|nettobe|gesetzliche|sozialvers)/i;
+  /^(?:lohnst|lohnsteuer|kirch|kist|soli|solidarit|kranken|kv\b|kv-|renten|rentvers|rv\b|rv-|arbeitslos|arblos|av\b|pflege|pv\b|kammer|umlage|sachbez|jahr-?\s*ausgl|lst-?\s*jahres|vwl|vorschuss|pfändung|abzüge|end-?\s*summe|summe\s+abzüge|netto|nettobe|gesetzliche|sozialvers|an-?\s*ant|winterbesch|urlaubsanspruch|resturlaub|urlaub\s*-?\s*(?:vorjahr|genommen|monatlich)|tätigkeitsschl|personengruppe|st\.?\s*kl\b|steuerrechtl|sv\s*-?\s*rechtl)/i;
+
+/** vacation day counts in the header (Urlaubsanspruch, Resturlaub ...): info, never the vacation pay line */
+const VACATION_FACT = /^(?:urlaubsanspruch|resturlaub|rest\s*-?\s*urlaub|urlaub\s*-?\s*(?:vorjahr|genommen|monatlich))/i;
 
 /** header facts in "Label: value" form */
 const HEADER_FACTS: { label: string; match: RegExp }[] = [
@@ -201,11 +263,18 @@ const HEADER_FACTS: { label: string; match: RegExp }[] = [
   { label: "Einsatzbetrieb", match: /einsatzbetrieb\s*:\s*(.+)$/i },
   { label: "Tarif", match: /tarif(?:vertrag)?\s*:\s*([^\s].*?)(?:\s+entgeltgruppe|$)/i },
   { label: "Entgeltgruppe", match: /entgeltgruppe\s*:?\s*((?:EG\s*)?\d[ab]?)\b/i },
+  { label: "Personengruppe", match: /personengruppe\s*:?\s*(\d{3})\b/i },
+  { label: "Tätigkeitsschlüssel", match: /tätigkeitsschl(?:üssel|\.)?\s*:?\s*(\d{9})\b/i },
+  { label: "St.Kl.", match: /\b(?:st\.?\s*kl\.?|steuerklasse)\s*:?\s*([1-6])\b/i },
 ];
 
 const YTD_WORD = /kumuliert|\bkum\.|jahreswert|jahressumme|jahres\s*-\s*summ|lfd\.?\s*jahr|\bytd\b|seit\s+jahresbeginn|bis\s+lfd|aufgelaufen/i;
 const isYtdHead = (s: string) => YTD_HEAD.test(s) || active.ytdHeadings.some((re) => re.test(s));
-const YTD_HEAD = /^(?:jahres\s*-?\s*summen|jahreswerte|jahresübersicht|jahres\s*-?\s*kumul|kumulierte\s+werte|summen\s+(?:lfd\.?\s*|laufendes\s+)?jahr|werte\s+seit\s+jahresbeginn)/i;
+const YTD_HEAD = /^(?:jahres\s*-?\s*summen|jahreswerte|jahresübersicht|jahres\s*-?\s*kumul|kumulierte\s+werte|summen\s+(?:lfd\.?\s*|laufendes\s+)?jahr|werte\s+seit\s+jahresbeginn|aufgelaufene?\s+jahres)/i;
+/** a year-to-date block that sits on the LEFT, beside month values on the right (Lexware style) */
+const YTD_LEFT_HEAD = /^aufgelaufene?\s+jahres/i;
+/** Σ / Gesamtsumme rows repeat the values above them */
+const SIGMA_ROW = /^(?:[Σ∑]|gesamtsumme\b)/i;
 const TABLE_END = /^(?:(?:monats)?summen?\b|gesamt\s*-?\s*brutto|st\s*\/\s*sv\b|abzüge\b|gesetzliche|netto|lohnsteuer\b|steuerbrutto|sv-?brutto|auszahlung\b|überweisung|steuer\s*\/\s*sozial|be-?\s*\/\s*abz)/i;
 
 function cleanLabel(s: string): string {
@@ -267,6 +336,7 @@ interface Pair {
   raw: string;
   value: number;
   x: number;
+  w: number;
 }
 
 /** "Label value" pairs on a line, plus numbers without a label in front (values of a label row above). */
@@ -285,7 +355,7 @@ function linePairs(l: TextLine): { pairs: Pair[]; loose: Token[] } {
     if (n !== null) {
       const groups = groupTokens(buf);
       const label = groups.length ? joinTokens(groups[groups.length - 1]!) : "";
-      if (label && /[a-zäöüß]/i.test(label)) pairs.push({ label: cleanLabel(label), raw: t.s.replace(/[;|]+$/, ""), value: n, x: t.x });
+      if (label && /[a-zäöüß]/i.test(label)) pairs.push({ label: cleanLabel(label), raw: t.s.replace(/[;|]+$/, ""), value: n, x: t.x, w: t.w });
       else loose.push(t);
       buf = [];
       lastWasNumber = true;
@@ -300,28 +370,65 @@ function linePairs(l: TextLine): { pairs: Pair[]; loose: Token[] } {
   return { pairs, loose };
 }
 
-/** A row of labels with the values on the next line (zvoove: "Ges. Stunden  Gleitzeit  KrankenVers."). */
-function labelRow(l: TextLine): { label: string; x: number }[] | null {
+interface LabelCell {
+  label: string;
+  x: number;
+  right: number;
+}
+
+/**
+ * A row of labels with the values on the next line (zvoove: "Ges. Stunden  Gleitzeit  KrankenVers.",
+ * Lexware: "Steuer-Brutto  Lohnsteuer ..." grid cells). A single label counts only when it is a
+ * total ("Nettoentgelt" with its value below); its value must then sit directly below it.
+ */
+function labelRow(l: TextLine): LabelCell[] | null {
   if (l.tokens.some((t) => tokNum(t.s) !== null)) return null;
-  const groups = groupTokens(l.tokens).map((g) => ({ label: cleanLabel(joinTokens(g)), x: g[0]!.x }));
-  if (groups.length < 2) return null;
+  const groups = groupTokens(l.tokens)
+    .map((g) => ({ label: cleanLabel(joinTokens(g)), x: g[0]!.x, right: g[g.length - 1]!.x + g[g.length - 1]!.w }))
+    .filter((g) => g.label && !/^[|;]+$/.test(g.label));
+  if (!groups.length) return null;
+  if (groups.length === 1) return matchTotal(groups[0]!.label, l.text) ? groups : null;
   if (!groups.some((g) => isKnownLabel(g.label, l.text))) return null;
   return groups;
 }
 
+const overlaps = (g: LabelCell, t: Token) => Math.min(t.x + t.w, g.right + 6) - Math.max(t.x, g.x - 6) > 0;
+
+/** the label cell a value below belongs to: the cell it overlaps most, else the nearest one to its left */
+function cellFor(groups: LabelCell[], t: Token): LabelCell | undefined {
+  const a = t.x;
+  const b = t.x + t.w;
+  let best: LabelCell | undefined;
+  let bestOv = 0;
+  for (const g of groups) {
+    const ov = Math.min(b, g.right + 6) - Math.max(a, g.x - 6);
+    if (ov > bestOv) {
+      bestOv = ov;
+      best = g;
+    }
+  }
+  if (best) return best;
+  if (groups.length === 1) return undefined;
+  const c = t.x + t.w / 2;
+  const left = groups.filter((g) => g.x <= c + 4);
+  return left.length ? left[left.length - 1]! : [...groups].sort((p, q) => Math.abs(p.x - c) - Math.abs(q.x - c))[0];
+}
+
 // ------------------------------------------------------------------ table header
 
-type ColKind = "code" | "label" | "cost" | "days" | "qty" | "rate" | "zuab" | "flag" | "taxable" | "svable" | "amount";
+/** `ytd`: a year-to-date column (Jahressummen): its values are never the month amount */
+type ColKind = "code" | "label" | "cost" | "days" | "qty" | "rate" | "zuab" | "flag" | "taxable" | "svable" | "amount" | "ytd";
 
 const HEADER_WORDS: [ColKind, RegExp][] = [
   ["code", /^(?:nr\.?|lohnart-?nr\.?|la|lart|la-?nr\.?|schl\.?|schlüssel|nummer|lohnart|lohnarten?-?nr\.?)$/i],
   ["label", /^(?:lohnartbezeichnung|lohnarten-?bezeichnung|lohnart-?bezeichnung|bezeichnung|lohnartentext|text|beschreibung|bezüge)$/i],
-  ["cost", /^(?:kst\.?|kostenstelle|kostenst\.?)$/i],
+  ["cost", /^(?:kst\.?|kostenstelle|kostenst\.?|kostenträger|kostentr\.?|kst\.?-?st\.?)$/i],
   ["days", /^tage$/i],
-  ["qty", /^(?:stunden|std\.?|menge|anzahl|std\.?\/tage|stk\.?|einheiten|menge\/std\.?)$/i],
+  ["qty", /^(?:stunden|std\.?|menge|anzahl|std\.?\/tage|stk\.?|einheit|einheiten|menge\/std\.?|stunden\/einheit|std\.?\/einheit)$/i],
   ["rate", /^(?:satz|faktor|lohnsatz|stundensatz|preis|einzelbetrag|€\/std\.?|€\/h)$/i],
-  ["zuab", /^(?:zu\/ab|zu-?\/abschlag|zuschlag)$/i],
-  ["flag", /^(?:st|sv|gb|kz|lst|st\/sv|sv\/st)$/i],
+  ["zuab", /^(?:zu\/ab|zu-?\/abschlag|zuschlag|zuschlagssatz|zuschlag\s*%|zuschl\.?)$/i],
+  ["flag", /^(?:st|sv|gb|kz|lst|st\/sv|sv\/st|gb\/st\/sv|st\/sv\/gb)$/i],
+  ["ytd", /^(?:jahressummen?|jahreswerte?|kumuliert|kum\.?|lfd\.?jahr|ytd)$/i],
   ["taxable", /^(?:stpfl\.?|steuerpfl\.?|st-?pfl\.?)$/i],
   ["svable", /^(?:sozpfl\.?|svpfl\.?|sv-?pfl\.?)$/i],
   ["amount", /^(?:brutto|betrag|gesamt|summe|gesamtbetrag|bruttobetrag)$/i],
@@ -341,17 +448,59 @@ interface Header {
   codeCol?: Column;
 }
 
+/** "St*" -> "St", "%-Zuschlag" -> "Zuschlag", "Betrag:" -> "Betrag" */
+const normHeader = (s: string) => ocrTrim(s).replace(/[:*]+$/, "").replace(/^%\s*-?\s*/, "");
+/** OCR noise at the edges of a header word: "___Lohn-", "_GB/ST/SV", "Betrag|" */
+const ocrTrim = (s: string) => s.replace(/^[_|—–.„"'‚]+/, "").replace(/[_|]+$/, "");
+
+/**
+ * Two-line headers ("Kosten-" over "stelle", "Zuschlags-" over "satz", "Stunden/" over "Einheit"):
+ * a word ending in "-" or "/" is joined with the word directly below it.
+ */
+export function joinHeaderLines(a: TextLine, b: TextLine): TextLine | null {
+  const ends = (t: Token) => /[-/]$/.test(ocrTrim(t.s));
+  if (!a.tokens.some(ends)) return null;
+  if (b.tokens.length > 14 || b.tokens.some((t) => tokNum(t.s) !== null)) return null;
+  const used = new Set<number>();
+  const joined = a.tokens.map((t0) => {
+    if (!ends(t0)) return t0;
+    const t = { ...t0, s: ocrTrim(t0.s) };
+    const i = b.tokens.findIndex((u, k) => !used.has(k) && u.x < t.x + Math.max(t.w, 20) + 6 && u.x + u.w > t.x - 6);
+    if (i < 0) return t;
+    used.add(i);
+    const u = b.tokens[i]!;
+    const us = ocrTrim(u.s);
+    const s = t.s.endsWith("-") && /^[a-zäöüß]/.test(us) ? t.s.slice(0, -1) + us : t.s + us;
+    return { ...t, s, w: Math.max(t.x + t.w, u.x + u.w) - t.x };
+  });
+  if (!used.size) return null;
+  const tokens = [...joined, ...b.tokens.filter((_, k) => !used.has(k))].sort((p, q) => p.x - q.x);
+  return { text: tokens.map((t) => t.s).join(" "), tokens, ...(a.ocr ? { ocr: true } : {}) };
+}
+
+/** the table header at line i, also when it is printed on two lines */
+function headerAt(all: TextLine[], i: number): { h: Header; span: 1 | 2 } | null {
+  const l = all[i]!;
+  const h = detectHeader(l);
+  if (h) return { h, span: 1 };
+  const next = all[i + 1];
+  const j = next ? joinHeaderLines(l, next) : null;
+  const h2 = j ? detectHeader(j) : null;
+  return h2 ? { h: h2, span: 2 } : null;
+}
+
 function detectHeader(l: TextLine): Header | null {
   if (l.tokens.length < 3 || l.tokens.length > 20) return null;
   const cols: Column[] = [];
   let unknown = 0;
   for (const t of l.tokens) {
-    const s = t.s.replace(/[:]$/, "");
+    const s = normHeader(t.s);
+    if (!s) continue;
     if (/^(?:€|eur)$/i.test(s) && cols.length) {
       cols[cols.length - 1]!.right = t.x + t.w;
       continue;
     }
-    const own = Object.entries(active.headers).find(([, words]) => words?.some((w) => w.toLowerCase() === s.toLowerCase()));
+    const own = Object.entries(active.headers).find(([, words]) => words?.some((w) => normHeader(w).toLowerCase() === s.toLowerCase()));
     const k: [ColKind, RegExp] | undefined = own ? [own[0] as ColKind, /./] : HEADER_WORDS.find(([, re]) => re.test(s));
     if (!k) {
       unknown++;
@@ -397,10 +546,11 @@ function parseColumnRow(l: TextLine, h: Header): RawRow | null {
   const extra: number[] = [];
   let unit: string | undefined;
   let ambiguous = false;
+  const perFlagCol = new Map<Column, number>();
   l.tokens.forEach((t, i) => {
     const centre = t.x + t.w / 2;
     if (centre < h.labelEnd) {
-      if (i === 0 && /^\d{2,6}$/.test(t.s) && (h.codeCol ? t.x < h.labelX - 1 : l.tokens.length > 2)) code = t.s;
+      if (i === 0 && (h.codeCol ? /^\d{1,6}$/.test(t.s) && t.x < h.labelX - 1 : /^\d{2,6}$/.test(t.s) && l.tokens.length > 2)) code = t.s;
       else labelToks.push(t.s);
       return;
     }
@@ -425,8 +575,12 @@ function parseColumnRow(l: TextLine, h: Header): RawRow | null {
       return;
     }
     if (FLAG_RE.test(t.s) && flagCols.length) {
-      const fc = [...flagCols].sort((a, b) => Math.abs(a.x - t.x) - Math.abs(b.x - t.x))[0];
-      flags.push({ col: fc?.name.toUpperCase(), v: t.s });
+      const fc = [...flagCols].sort((a, b) => Math.abs(a.x - t.x) - Math.abs(b.x - t.x))[0]!;
+      // combined "GB/ST/SV" column: the n-th flag belongs to the n-th part
+      const parts = fc.name.toUpperCase().split("/");
+      const k = perFlagCol.get(fc) ?? 0;
+      perFlagCol.set(fc, k + 1);
+      flags.push({ col: parts.length > 1 ? (parts[k] ?? parts[parts.length - 1]) : fc.name.toUpperCase(), v: t.s });
       return;
     }
     if (UNIT_RE.test(t.s)) {
@@ -466,7 +620,7 @@ function splitRowLoose(line: string): (Row & { flags: string[] }) | null {
   let unit: string | undefined;
   while (tokens.length) {
     const t = tokens[tokens.length - 1]!;
-    if (/^[LFJNSP]$/.test(t)) {
+    if (/^(?:[LFJNESMVP]|\*)$/.test(t)) {
       flags.unshift(t);
       tokens.pop();
       continue;
@@ -538,9 +692,23 @@ function finishRow(raw: RawRow, source: string, labelMap: LabelMap): ParsedRow {
   if (qty === 0 && amount) qty = undefined;
   let rate: number | undefined;
   let baseRate: number | undefined;
+  let zuabNote: string | undefined;
   if (v.zuab) {
-    rate = v.zuab;
-    baseRate = v.rate || undefined;
+    const base = v.rate;
+    if (qty && base && amount !== undefined && v.zuab === 100 && near(qty * base, amount) && cat.id === "holidayPay") {
+      // Lexware "Feiertagsstunden ... %-Zuschlag 100": the hours are paid at 100 % of the rate, not +100 %
+      rate = base;
+      zuabNote = "paid at 100 % of the rate (paid public holiday, not a +100 % surcharge)";
+    } else if (qty && base && amount !== undefined && near(qty * base * (v.zuab / 100), amount)) {
+      // percentage surcharge column (%-Zuschlag, Zuschlagssatz): rate = Satz x %
+      rate = (base * v.zuab) / 100;
+      baseRate = base;
+      zuabNote = `surcharge ${v.zuab.toLocaleString("de-DE")} % of ${base.toLocaleString("de-DE", { minimumFractionDigits: 2 })} €/h`;
+    } else {
+      // zvoove: Zu/Ab is the surcharge in €/h, Satz the hourly rate it was calculated on
+      rate = v.zuab;
+      baseRate = base || undefined;
+    }
   } else rate = v.rate || undefined;
   const hours = c.quantity === "hours" && !unit ? qty : undefined;
   const quantity = hours === undefined ? qty : undefined;
@@ -570,6 +738,7 @@ function finishRow(raw: RawRow, source: string, labelMap: LabelMap): ParsedRow {
     note = [note, "the columns of this line were not clear"].filter(Boolean).join("; ");
   }
   if (raw.mode === "heuristic" && !raw.code && confidence === "sicher") confidence = "pruefen";
+  if (zuabNote) note = [note, zuabNote].filter(Boolean).join("; ");
   if (cat.id === "other") {
     confidence = "unsicher";
     note = "not recognised: choose what this line is";
@@ -654,6 +823,14 @@ function findMonth(lines: string[]): Parsed<string> | undefined {
   }
   if (period) return period;
   for (const l of lines) {
+    // "Abrechnung der Brutto-Netto-Bezüge ... November 2026"
+    let m = new RegExp(`abrechnung\\S*(?:\\s+\\S+){0,6}?\\s+(${MONTHS.join("|")})\\s+(20\\d{2})\\b`, "i").exec(l);
+    if (m) return { value: `${m[2]}-${mm(MONTHS.indexOf(m[1]!.toLowerCase()) + 1)}`, confidence: "sicher", source: l };
+    // "Lohn- und Gehaltsabrechnung 04.2026" (MM.YYYY right after the title, never part of a date)
+    m = /abrechnung\S*(?:\s+\S+){0,4}?\s+(0[1-9]|1[0-2])\.(20\d{2})(?![.\d])/i.exec(l);
+    if (m) return { value: `${m[2]}-${m[1]}`, confidence: "sicher", source: l };
+  }
+  for (const l of lines) {
     const m = /\b(0[1-9]|1[0-2])\s*\/\s*(20\d{2})\b/.exec(l);
     if (m) return { value: `${m[2]}-${m[1]}`, confidence: "unsicher", source: l, note: "guessed from a date in the text" };
   }
@@ -665,29 +842,37 @@ function findMonth(lines: string[]): Parsed<string> | undefined {
 export function parsePayslipLines(input: (string | TextLine)[], opts: ParseOptions = {}): ParsedPayslip {
   const all = toTextLines(input.map((l) => (typeof l === "string" ? l.replace(/\t/g, "  ") : l)));
   const texts = all.map((l) => l.text);
-  const { profile } = detectProfile(texts.join("\n"), opts.producer);
-  active = profile;
+  const detected = detectProfile(texts.join("\n"), opts.producer);
+  active = detected.profile;
   try {
-    return parseDetected(all, texts, profile, opts);
+    return parseDetected(all, texts, detected, opts);
   } finally {
     active = GENERIC;
   }
 }
 
-function parseDetected(all: TextLine[], texts: string[], profile: Profile, opts: ParseOptions): ParsedPayslip {
+function parseDetected(all: TextLine[], texts: string[], detected: ReturnType<typeof detectProfile>, opts: ParseOptions): ParsedPayslip {
+  const profile: Profile = detected.profile;
   const labelMap = opts.labelMap ?? {};
-  const headerIdx = all.findIndex((l) => detectHeader(l));
+  const headerIdx = all.findIndex((_, i) => headerAt(all, i));
   let result = parseWith(all, labelMap, headerIdx >= 0);
   // a header was found but no row could be read from it: fall back to the end-of-line numbers
   if (headerIdx >= 0 && result.rows.length === 0) result = parseWith(all, labelMap, false);
-  result.profile = { id: profile.id, name: profile.name, checked: profile.checked, note: profile.note };
+  result.profile = { id: profile.id, name: profile.name, checked: profile.checked, note: profile.note, score: detected.score };
+  result.profileScores = detected.scores;
   result.month = findMonth(texts.filter((t) => !result.ytd.includes(t)));
+  result.quality = assessQuality(result);
   return result;
 }
 
 function parseWith(all: TextLine[], labelMap: LabelMap, useHeader: boolean): ParsedPayslip {
   const out: ParsedPayslip = {
-    profile: { id: "generic", name: "", checked: false, note: "" },
+    profile: { id: "generic", name: "", checked: false, note: "", score: 0 },
+    profileScores: [],
+    payType: "hourly",
+    payTypeReason: "",
+    quality: { level: "unsicher", reasons: [] },
+    ignored: [],
     table: "none",
     lines: {},
     rows: [],
@@ -706,15 +891,18 @@ function parseWith(all: TextLine[], labelMap: LabelMap, useHeader: boolean): Par
     if (prev && !(prev.confidence !== "sicher" && confidence === "sicher")) return;
     out.summary[field] = { value, confidence, source, ...(note ? { note } : {}) };
   };
-  const usePair = (p: { label: string; raw: string; value: number }, l: TextLine, block: boolean) => {
+  // the original text line of the value (also when only a part of it is parsed), for OCR marking
+  let curSource = "";
+  const usePair = (p: { label: string; raw: string; value: number }, l: TextLine, block: boolean, extraNote?: string, check = false) => {
     const t = matchTotal(p.label, l.text);
     if (t) {
       let conf = t.rule.confidence;
-      let note: string | undefined;
+      let note: string | undefined = extraNote;
+      if (check && conf === "sicher") conf = "pruefen";
       if (t.rule.field === "azkSaldo" && conf === "pruefen") note = "balance of the Gleitzeit/AZK account (hours): check";
       if (block) note = [note, "read from a label row with the value below"].filter(Boolean).join("; ");
       if (block && conf === "sicher" && t.rule.field === "azkSaldo") conf = "pruefen";
-      setTotal(t.rule.field, p.value, conf, l.text, note);
+      setTotal(t.rule.field, p.value, conf, curSource || l.text, note);
       if (!["gesamtbrutto", "steuerfrei", "azkSaldo", "stundenlohn"].includes(t.rule.field)) addInfo(t.text, p.raw);
       return true;
     }
@@ -739,29 +927,97 @@ function parseWith(all: TextLine[], labelMap: LabelMap, useHeader: boolean): Par
 
   let header: Header | null = null;
   let inTable = false;
+  // the Σ row right below the wage table: some layouts print the month's gross only there
+  let sigmaGross: Parsed<number> | undefined;
   let textOnly = 0;
-  let ytdMode = false;
-  let pending: { groups: { label: string; x: number }[]; ttl: number } | null = null;
+  /** year-to-date block: tokens left of xMax are year values (Infinity = the whole line) */
+  let ytdMode: { xMax: number } | null = null;
+  let pending: { groups: LabelCell[]; ttl: number } | null = null;
+  /** "Monat | Jahr" value blocks (WERTE): numbers under a Jahr column are year values */
+  let monthYear: { monat: number[]; jahr: number[]; ttl: number } | null = null;
+  let salaryHint = false;
+  const PAGE_HEAD = /^(?:abrechnungs|entgeltabrechnung|verdienstabrechnung|lohnabrechnung|seite\s+\d)/i;
+  const sub = (l: TextLine, tokens: Token[]): TextLine => ({ text: tokens.map((t) => t.s).join(" "), tokens, ...(l.ocr ? { ocr: true } : {}) });
 
-  for (const l of all) {
-    const text = l.text;
-    const h = useHeader ? detectHeader(l) : null;
-    if (h) {
-      header = h;
+  for (let i = 0; i < all.length; i++) {
+    let l = all[i]!;
+    curSource = l.text;
+    const hd = useHeader ? headerAt(all, i) : null;
+    if (hd) {
+      header = hd.h;
       inTable = true;
       textOnly = 0;
-      ytdMode = false;
+      ytdMode = null;
+      monthYear = null;
       pending = null;
       out.table = "columns";
+      i += hd.span - 1;
       continue;
     }
     if (ytdMode) {
-      if (/^(?:abrechnungs|entgeltabrechnung|verdienstabrechnung|lohnabrechnung|seite\s+\d)/i.test(text)) ytdMode = false;
+      if (PAGE_HEAD.test(l.text)) ytdMode = null;
       else {
-        out.ytd.push(text);
-        continue;
+        const xMax = ytdMode.xMax;
+        // a token reaching into the right column belongs to it (labels there start a bit further left)
+        const isRight = (t: Token) => t.x + t.w > xMax;
+        const left = l.tokens.filter((t) => !isRight(t));
+        const right = l.tokens.filter(isRight);
+        if (left.length) out.ytd.push(xMax === Infinity ? l.text : sub(l, left).text);
+        if (!right.length) continue;
+        l = sub(l, right);
+      }
+    } else {
+      // "Aufgelaufene Jahreswerte" block on the left, month values on the right of the same lines
+      const hg = groupTokens(l.tokens).find((g) => YTD_LEFT_HEAD.test(cleanLabel(joinTokens(g))));
+      if (hg) {
+        const end = hg[hg.length - 1]!.x + hg[hg.length - 1]!.w;
+        const next = l.tokens.find((t) => t.x > end + 30);
+        const xMax = next ? next.x - 1 : Infinity;
+        ytdMode = { xMax };
+        inTable = false; // a label row above (right column) may still get its value on this line
+        const right = l.tokens.filter((t) => t.x >= xMax);
+        out.ytd.push(sub(l, l.tokens.filter((t) => t.x < xMax)).text);
+        if (!right.length) continue;
+        l = sub(l, right);
       }
     }
+    // Σ / Gesamtsumme rows repeat the values above: listed, never used
+    if (SIGMA_ROW.test(l.tokens[0]?.s ?? "") || /^\S{0,2}\s*gesamtsumme\b/i.test(l.tokens.slice(0, 2).map((t) => t.s).join(" "))) {
+      out.ignored.push({ text: curSource, reason: "Σ / Gesamtsumme row: repeats the values above" });
+      const upto = l.tokens.findIndex((t, k) => k > 0 && t.s === "|");
+      const sigNums = (upto > 0 ? l.tokens.slice(0, upto) : l.tokens).map((t) => tokNum(t.s)).filter((n): n is number => n !== null);
+      if (inTable && !sigmaGross && /^[Σ∑]/.test(l.tokens[0]?.s ?? "") && sigNums.length === 1)
+        sigmaGross = { value: sigNums[0]!, confidence: "pruefen", source: curSource, note: "no gross total printed: taken from the Σ row below the wage table" };
+      // a scan may show the next box of the page after a "|" border on the same line
+      const bar = l.tokens.findIndex((t, k) => k > 0 && t.s === "|");
+      const rest = bar > 0 ? l.tokens.slice(bar + 1).filter((t) => t.s !== "|") : [];
+      if (!l.ocr || !rest.length) continue;
+      l = sub(l, rest);
+    }
+    // "Monat | Jahr" value blocks
+    const hasNum = l.tokens.some((t) => tokNum(t.s) !== null);
+    if (!hasNum && l.tokens.some((t) => /^monat$/i.test(normHeader(t.s))) && l.tokens.some((t) => /^jahr$/i.test(normHeader(t.s)))) {
+      const xs = (re: RegExp) => l.tokens.filter((t) => re.test(normHeader(t.s))).map((t) => t.x + t.w / 2);
+      monthYear = { monat: xs(/^(?:monat|\(m\))$/i), jahr: xs(/^(?:jahr|\(j\))$/i), ttl: 10 };
+      pending = null;
+      inTable = false;
+      continue;
+    }
+    if (monthYear) {
+      if (--monthYear.ttl <= 0 || PAGE_HEAD.test(l.text)) monthYear = null;
+      else if (hasNum) {
+        const my = monthYear;
+        const dist = (c: number, xs: number[]) => Math.min(...xs.map((x) => Math.abs(x - c)));
+        const drop = l.tokens.filter((t) => tokNum(t.s) !== null && dist(t.x + t.w / 2, my.jahr) < dist(t.x + t.w / 2, my.monat));
+        if (drop.length) {
+          out.ytd.push(curSource);
+          const keep = l.tokens.filter((t) => !drop.includes(t));
+          if (!keep.length) continue;
+          l = sub(l, keep);
+        }
+      }
+    }
+    const text = l.text;
     for (const f of HEADER_FACTS) {
       const m = f.match.exec(text);
       if (m) addInfo(f.label, m[1]!.trim());
@@ -773,8 +1029,23 @@ function parseWith(all: TextLine[], labelMap: LabelMap, useHeader: boolean): Par
       const end = TABLE_END.test(first) || isYtdHead(first) || groups.some((g) => isYtdHead(g)) || labelRow(l) || groups.some((g) => !!matchTotal(g, text) && !/\d/.test(g) && g === first);
       if (!end) {
         const raw = parseColumnRow(l, header);
+        // vacation day counts and deduction rows inside the earnings grid are info, never wage rows
+        if (raw && (VACATION_FACT.test(raw.label) || (isInfoLabel(raw.label) && categorize(raw.label, labelMap).id === "other"))) {
+          const t = monthNumber(l, header);
+          if (t) usePair({ label: raw.label, raw: t.s, value: tokNum(t.s)! }, l, false);
+          textOnly = 0;
+          continue;
+        }
         if (raw) {
-          addRow(raw, text);
+          addRow(raw, curSource);
+          textOnly = 0;
+          continue;
+        }
+        // "1000 Gehalt" whose amount could not be read: keep the row (it decides the pay type)
+        const sal = /^(\d{1,6})?\s*((?:monats)?gehalt|monatslohn)\b/i.exec(text);
+        if (sal) {
+          salaryHint = true;
+          addRow({ ...(sal[1] ? { code: sal[1] } : {}), label: sal[2]!, values: {}, flags: [], extra: [], mode: "columns", ambiguous: false }, curSource);
           textOnly = 0;
           continue;
         }
@@ -785,30 +1056,36 @@ function parseWith(all: TextLine[], labelMap: LabelMap, useHeader: boolean): Par
 
     // year-to-date heading: "Jahressummen" (block below) or "Jahreswerte: ... kumuliert 1.234,56" (inline)
     const ytdHeading = groups.some((g) => isYtdHead(g));
-    const { pairs, loose } = linePairs(l);
+    const lp = linePairs(l);
+    const loose = lp.loose;
+    let pairs = lp.pairs;
     if (ytdHeading) {
       const inlineYtd = pairs.some((p) => YTD_WORD.test(p.label) && p.raw.includes(","));
       for (const p of pairs) if (!YTD_WORD.test(p.label) && !isYtdHead(p.label)) usePair(p, l, false);
-      out.ytd.push(text);
-      if (!inlineYtd) ytdMode = true;
+      out.ytd.push(curSource);
+      if (!inlineYtd) ytdMode = { xMax: Infinity };
       pending = null;
       continue;
     }
     if (pairs.some((p) => YTD_WORD.test(p.label))) {
-      out.ytd.push(text);
+      out.ytd.push(curSource);
       for (const p of pairs) if (!YTD_WORD.test(p.label)) usePair(p, l, false);
       continue;
     }
 
-    // values below a label row
-    if (pending && loose.length) {
-      const used = new Set<string>();
-      for (const t of loose) {
-        const c = t.x + t.w / 2;
-        const left = pending.groups.filter((g) => g.x <= c + 4);
-        const g = left.length ? left[left.length - 1]! : [...pending.groups].sort((a, b) => Math.abs(a.x - c) - Math.abs(b.x - c))[0]!;
-        if (used.has(g.label)) continue; // two values under one label: unclear, keep the first
-        used.add(g.label);
+    // values below a label row; a number directly below a label cell belongs to it even when OCR
+    // left a stray word before it ("A 1.234,56")
+    const below = pending
+      ? pairs.filter((p) => !isKnownLabel(p.label, text) && pending!.groups.some((g) => overlaps(g, { s: p.raw, x: p.x, w: p.w })))
+      : [];
+    if (below.length) pairs = pairs.filter((p) => !below.includes(p));
+    const vals = [...loose, ...below.map((p) => ({ s: p.raw, x: p.x, w: p.w }))].sort((a, b) => a.x - b.x);
+    if (pending && vals.length) {
+      const used = new Set<LabelCell>();
+      for (const t of vals) {
+        const g = cellFor(pending.groups, t);
+        if (!g || used.has(g)) continue; // two values under one label: unclear, keep the first
+        used.add(g);
         usePair({ label: g.label, raw: t.s, value: tokNum(t.s)! }, l, true);
       }
       pending = null;
@@ -821,21 +1098,31 @@ function parseWith(all: TextLine[], labelMap: LabelMap, useHeader: boolean): Par
 
     // rows without a table header (only when no header was found)
     const startsWithCode = /^\d{3,5}\s+\S*[a-zäöüß]/i.test(text);
-    if (!useHeader && startsWithCode) {
+    if (!useHeader && startsWithCode && !VACATION_FACT.test(text.replace(/^\d+\s+/, ""))) {
       const raw = heuristicRow(text);
       if (raw) {
-        addRow(raw, text);
+        addRow(raw, curSource);
         out.table = "heuristic";
         continue;
       }
     }
     let used = false;
-    for (const p of pairs) used = usePair(p, l, false) || used;
+    if (pairs.length === 1 && loose.length && loose[0]!.x > pairs[0]!.x && matchTotal(pairs[0]!.label, text)) {
+      // a total with a second number on the line (GESAMTBRUTTO: month  year): take the one in the
+      // amount column; without a table header take the first and ask the user to check
+      const p = pairs[0]!;
+      const cands = [{ s: p.raw, x: p.x, w: p.w }, ...loose.filter((t) => t.x > p.x)];
+      const amountCol = header?.cols.find((c) => c.kind === "amount");
+      const inAmount = amountCol ? cands.find((t) => Math.abs(t.x + t.w - amountCol.right) <= 45 || (t.x <= amountCol.right && t.x + t.w >= amountCol.x)) : undefined;
+      if (inAmount) used = usePair({ ...p, raw: inAmount.s, value: tokNum(inAmount.s)! }, l, false, "a second number on this line (probably year-to-date) was not used");
+      else used = usePair(p, l, false, "a second number on this line (probably year-to-date) was not used: check", true);
+    } else for (const p of pairs) used = usePair(p, l, false) || used;
     if (used || useHeader) continue;
     if (/:\s/.test(text)) continue; // header "Label: value" lines
+    if (VACATION_FACT.test(text)) continue;
     const raw = heuristicRow(text);
     if (raw && categorize(raw.label, labelMap).id !== "other") {
-      addRow(raw, text);
+      addRow(raw, curSource);
       out.table = "heuristic";
     }
   }
@@ -848,26 +1135,98 @@ function parseWith(all: TextLine[], labelMap: LabelMap, useHeader: boolean): Par
     g.note = `the header says Stundenlohn ${sl.value.toFixed(2)}, the row says ${g.rate.toFixed(2)}`;
   }
 
-  // cross-checks: the rows must add up to the payslip's totals
+  // pay type: a Gehalt / Monatslohn line, or a base line without hours and rate = monthly salary
+  const baseRows = out.rows.filter((r) => r.category === "base");
+  const salaryRow = baseRows.find((r) => SALARY_LABEL.test(r.label));
+  if (salaryRow || salaryHint) {
+    out.payType = "salary";
+    out.payTypeReason = `the base line "${salaryRow?.label ?? "Gehalt"}" is a monthly salary`;
+  } else if (baseRows.length && baseRows.every((r) => r.hours === undefined && r.rate === undefined && r.quantity === undefined && r.amount !== undefined)) {
+    out.payType = "salary";
+    out.payTypeReason = "the base line has an amount but no hours and no rate";
+  } else {
+    out.payType = "hourly";
+    out.payTypeReason = baseRows.length ? "the base line has hours and a rate" : "no base line found: assumed hourly";
+  }
+
+  // cross-checks: the rows must add up to the payslip's totals, gross - deductions = net
+  const S = out.summary;
+  if (!S.gesamtbrutto && sigmaGross) S.gesamtbrutto = sigmaGross;
   const sum = (f: (r: ParsedRow) => number | undefined, rows = out.rows) => r2(rows.reduce((a, r) => a + (f(r) ?? 0), 0));
   const grossRows = out.rows.filter((r) => CATEGORIES[r.category].gross);
   const check = (id: CrossCheck["id"], label: string, rows: number, total?: Parsed<number>) => {
     if (!total) return;
     const ok = Math.abs(rows - total.value) <= 0.02;
     out.checks.push({ id, label, rows, total: total.value, ok });
-    if (!ok && total.confidence === "sicher" && id === "gross") total.confidence = "pruefen";
-    if (!ok) total.note = [total.note, `the table rows add up to ${rows.toFixed(2)}`].filter(Boolean).join("; ");
+    if (!ok && total.confidence === "sicher" && (id === "gross" || id === "net" || id === "payout")) total.confidence = "pruefen";
+    if (!ok) total.note = [total.note, `${id === "gross" ? "the table rows add up to" : "expected from the other totals:"} ${rows.toFixed(2)}`].filter(Boolean).join("; ");
   };
+  // a gross row whose amount could not be read: the rows cannot be added up
+  const unreadable = grossRows.some((r) => r.amount === undefined);
   if (out.rows.length) {
-    check("gross", "Rows added up vs. gross total", sum((r) => r.amount, grossRows), out.summary.gesamtbrutto);
-    if (out.rows.some((r) => r.taxable !== undefined)) check("taxable", "Taxable column vs. Steuerbrutto", sum((r) => r.taxable), out.summary.steuerbrutto);
-    if (out.rows.some((r) => r.svable !== undefined)) check("svable", "SV column vs. SV-Brutto", sum((r) => r.svable), out.summary.svbrutto);
+    if (!unreadable) check("gross", "Rows added up vs. gross total", sum((r) => r.amount, grossRows), S.gesamtbrutto);
+    if (out.rows.some((r) => r.taxable !== undefined)) check("taxable", "Taxable column vs. Steuerbrutto", sum((r) => r.taxable), S.steuerbrutto);
+    if (out.rows.some((r) => r.svable !== undefined)) check("svable", "SV column vs. SV-Brutto", sum((r) => r.svable), S.svbrutto);
     const taxFree = out.rows.some((r) => r.taxable !== undefined)
       ? sum((r) => (r.amount !== undefined && r.taxable !== undefined ? r.amount - r.taxable : undefined), grossRows)
       : sum((r) => (r.taxFree ? r.amount : undefined), grossRows);
-    if (out.rows.some((r) => r.taxFree)) check("taxfree", "Tax-free rows vs. steuerfrei total", taxFree, out.summary.steuerfrei);
+    if (out.rows.some((r) => r.taxFree)) check("taxfree", "Tax-free rows vs. steuerfrei total", taxFree, S.steuerfrei);
   }
+  const deductions = S.abzuege
+    ? Math.abs(S.abzuege.value)
+    : S.steuerAbzuege || S.svAbzuege
+      ? Math.abs(S.steuerAbzuege?.value ?? 0) + Math.abs(S.svAbzuege?.value ?? 0)
+      : undefined;
+  if (S.gesamtbrutto && deductions !== undefined) check("net", "Gross − statutory deductions vs. net", r2(S.gesamtbrutto.value - deductions), S.netto);
+  // no gross total printed (some layouts show it only as a Σ row): the readable rows stand in
+  else if (deductions !== undefined && grossRows.length && !unreadable)
+    check("net", "Table rows − statutory deductions vs. net", r2(sum((r) => r.amount, grossRows) - deductions), S.netto);
+  if (S.netto && S.auszahlung) {
+    const adj = S.nettoAbzuege ? Math.abs(S.nettoAbzuege.value) : 0;
+    const expected = [r2(S.netto.value - adj), r2(S.netto.value + adj)].sort((a, b) => Math.abs(a - S.auszahlung!.value) - Math.abs(b - S.auszahlung!.value))[0]!;
+    check("payout", S.nettoAbzuege ? "Net ± other net items vs. payout" : "Net vs. payout (no other net items found)", expected, S.auszahlung);
+  }
+  out.quality = assessQuality(out);
   return out;
+}
+
+const SALARY_LABEL = /gehalt|monatslohn|monatsentgelt|festbezug|fixum/i;
+
+/** the month value on a grid row: not in a year-to-date column, preferably in the amount column */
+function monthNumber(l: TextLine, h: Header): Token | undefined {
+  const numeric = h.cols.filter((c) => !["code", "label", "flag"].includes(c.kind));
+  const colOf = (t: Token) =>
+    [...numeric].sort((a, b) => Math.abs(t.x + t.w - a.right) - Math.abs(t.x + t.w - b.right))[0];
+  const nums = l.tokens.filter((t) => tokNum(t.s) !== null && t.x + t.w / 2 >= h.labelEnd && colOf(t)?.kind !== "ytd");
+  return nums.find((t) => colOf(t)?.kind === "amount") ?? nums[0];
+}
+
+/** One overall verdict for the import, from the cross-checks and what was found. */
+export function assessQuality(p: ParsedPayslip): ImportQuality {
+  const reasons: string[] = [];
+  const S = p.summary;
+  reasons.push(p.profile.id === "generic" ? "No known layout recognised: generic parser used" : `Recognised layout: ${p.profile.name}${p.profile.checked ? "" : " (not yet checked against a real payslip)"}`);
+  reasons.push(p.payType === "salary" ? "Monthly salary: only the totals can be compared" : "Hourly wage");
+  const failed = p.checks.filter((c) => !c.ok);
+  for (const c of p.checks) reasons.push(`${c.label}: ${c.ok ? "ok" : "does not add up"}`);
+  if (!S.gesamtbrutto) reasons.push("No gross total found");
+  if (p.unmatched.length) reasons.push(`${p.unmatched.length} line(s) not recognised`);
+  if (p.ytd.length) reasons.push("Year-to-date values found and ignored");
+  if (p.ignored.length) reasons.push(`${p.ignored.length} Σ / repeat row(s) ignored`);
+  const confirmed = p.checks.some((c) => (c.id === "gross" || c.id === "net") && c.ok);
+  if (S.gesamtbrutto && S.gesamtbrutto.confidence !== "sicher") reasons.push(`Gross total: ${S.gesamtbrutto.note ?? "needs checking"}`);
+  const grossCap = S.gesamtbrutto && S.gesamtbrutto.confidence !== "sicher";
+  const raw: Confidence = !S.gesamtbrutto
+    ? confirmed && failed.length === 0
+      ? "pruefen"
+      : "unsicher"
+    : failed.length === 0 && confirmed
+      ? "sicher"
+      : failed.length <= 1
+        ? "pruefen"
+        : "unsicher";
+  const level: Confidence = raw === "sicher" && grossCap ? "pruefen" : raw;
+  return { level, reasons };
 }
 
 /** Fields found, for "did we recognise a payslip at all?" */

@@ -114,6 +114,12 @@ export const PayslipSchema = z.object({
   gesamtbrutto: optNum,
   steuerfrei: optNum,
   azkSaldo: optNum,
+  /** hourly wage or monthly salary (from the import); a salary is compared by totals only */
+  payType: z.enum(["hourly", "salary"]).optional(),
+  /** statutory deductions, net and payout as printed: shown and cross-checked, never calculated */
+  abzuege: optNum,
+  netto: optNum,
+  auszahlung: optNum,
   /** informational values from the payslip that the app does not calculate */
   extra: z.record(z.string(), z.string()).optional(),
   /** payslip lines the app does not calculate (info only): Urlaubsgeld, Verpflegung, unknown lines ... */
@@ -125,7 +131,7 @@ export const PayslipSchema = z.object({
 export type Payslip = z.infer<typeof PayslipSchema>;
 
 /** Version of the saved data layout. Bump it and add a migration in storage.ts when the shape changes. */
-export const SCHEMA_VERSION = 2;
+export const SCHEMA_VERSION = 3;
 
 export const AppDataSchema = z.object({
   schemaVersion: z.literal(SCHEMA_VERSION),

@@ -54,16 +54,22 @@ export const GENERIC: Profile = {
   ytdHeadings: [],
 };
 
+export const MIN_PROFILE_SCORE = 4;
+
 /** `producer`: PDF metadata (Producer/Creator), optional. */
-export function detectProfile(text: string, producer = ""): { profile: Profile; score: number } {
+export function detectProfile(text: string, producer = ""): { profile: Profile; score: number; scores: { id: ProfileId; name: string; score: number }[] } {
   let best = { profile: GENERIC, score: 0 };
+  const scores: { id: ProfileId; name: string; score: number }[] = [];
   for (const p of PROFILES) {
     let score = 0;
     for (const m of p.markers) {
       if (m.re.test(text)) score += m.weight;
       else if (producer && m.re.test(producer)) score += Math.ceil(m.weight / 2);
     }
+    scores.push({ id: p.id, name: p.name, score });
     if (score > best.score) best = { profile: p, score };
   }
-  return best.score >= 4 ? best : { profile: GENERIC, score: best.score };
+  scores.sort((a, b) => b.score - a.score);
+  // every profile is scored; below MIN_PROFILE_SCORE the generic heuristic parser is used
+  return best.score >= MIN_PROFILE_SCORE ? { ...best, scores } : { profile: GENERIC, score: best.score, scores };
 }

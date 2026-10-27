@@ -1,4 +1,4 @@
-import { textLinesFromItems, type TextLine } from "@/import/pdfText";
+import { textLinesFromItems, type TextLine, type Token } from "@/import/pdfText";
 
 /** The part of tesseract.js' result we use (blocks -> paragraphs -> lines -> words). */
 export interface OcrBox {
@@ -46,7 +46,45 @@ export function ocrBlocksToLines(blocks: OcrBlock[] | null | undefined): TextLin
         conf: Math.round(w.confidence),
       }))
   );
-  return textLinesFromItems(items);
+  return textLinesFromItems(items).map(cleanOcrLine).filter((l) => l.tokens.length);
+}
+
+/** table borders and specks that OCR reads as characters: kept as a "|" cell border */
+const NOISE = /^[|\\[\]{}©®»«_~¦•·]+$/;
+
+/**
+ * Turns border noise ("©", "]") into "|" cell borders and joins words split around a hyphen, which OCR often reads
+ * as separate words: "Steuer - Brutto" and "KV- Brutto" become "Steuer-Brutto" / "KV-Brutto",
+ * so a label is never cut into "Steuer" and a stray "Brutto".
+ */
+export function cleanOcrLine(l: TextLine): TextLine {
+  const toks = l.tokens
+    .map((t) => (NOISE.test(t.s) ? { ...t, s: "|" } : t))
+    .filter((t, i, a) => !(t.s === "|" && (i === 0 || a[i - 1]!.s === "|")));
+  const out: Token[] = [];
+  const near = (a: Token, b: Token) => b.x - (a.x + a.w) <= 12;
+  for (let i = 0; i < toks.length; i++) {
+    const t = toks[i]!;
+    const prev = out[out.length - 1];
+    const next = toks[i + 1];
+    const word = (s: string) => /[A-Za-zÄÖÜäöüß]$/.test(s);
+    if (prev && next && t.s === "-" && word(prev.s) && /^[A-Za-zÄÖÜäöüß]/.test(next.s) && near(prev, t) && near(t, next)) {
+      out[out.length - 1] = merge(prev, next, "-");
+      i++;
+      continue;
+    }
+    if (prev && /[A-Za-zÄÖÜäöüß]-$/.test(prev.s) && /^[A-ZÄÖÜ][a-zäöüß]+$/.test(t.s) && t.x - (prev.x + prev.w) <= 10) {
+      out[out.length - 1] = merge(prev, t, "");
+      continue;
+    }
+    out.push(t);
+  }
+  return { ...l, text: out.map((t) => t.s).join(" "), tokens: out };
+}
+
+function merge(a: Token, b: Token, sep: string): Token {
+  const c = a.c !== undefined && b.c !== undefined ? Math.min(a.c, b.c) : (a.c ?? b.c);
+  return { s: a.s + sep + b.s, x: a.x, w: b.x + b.w - a.x, ...(c !== undefined ? { c } : {}) };
 }
 
 export function meanConfidence(lines: TextLine[]): number | null {

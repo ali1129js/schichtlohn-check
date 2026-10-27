@@ -18,8 +18,8 @@ const Meta = {
   note: z.string().optional(),
 };
 
-export const COLUMN_KINDS = ["code", "label", "cost", "days", "qty", "rate", "zuab", "flag", "taxable", "svable", "amount"] as const;
-export const TOTAL_FIELDS = ["gesamtbrutto", "steuerbrutto", "svbrutto", "steuerfrei", "netto", "auszahlung", "azkSaldo", "gesStunden", "stundenlohn"] as const;
+export const COLUMN_KINDS = ["code", "label", "cost", "days", "qty", "rate", "zuab", "flag", "taxable", "svable", "amount", "ytd"] as const;
+export const TOTAL_FIELDS = ["gesamtbrutto", "steuerbrutto", "svbrutto", "steuerfrei", "netto", "auszahlung", "abzuege", "steuerAbzuege", "svAbzuege", "nettoAbzuege", "azkSaldo", "gesStunden", "stundenlohn"] as const;
 
 export const CategorySchema = z.object({
   id: z.string().min(1),

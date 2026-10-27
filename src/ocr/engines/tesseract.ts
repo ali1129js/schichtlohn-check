@@ -76,11 +76,11 @@ async function createTesseract(cfg: OcrConfig, onProgress?: (p: OcrProgress) => 
   });
   await worker.setParameters({ tessedit_pageseg_mode: String(t.pageSegMode) as never, user_defined_dpi: String(cfg.dpi), preserve_interword_spaces: "1" });
 
-  const recognize = async (c: Canvas): Promise<TextLine[]> => {
+  const recognize = async (c: Canvas, kind: "page" | "photo" = "page"): Promise<TextLine[]> => {
     const ctx = c.getContext("2d", { willReadFrequently: true });
     if (ctx) {
       const img = ctx.getImageData(0, 0, c.width, c.height);
-      preprocess(img, cfg.preprocess);
+      preprocess(img, cfg.preprocess, kind);
       ctx.putImageData(img, 0, 0);
     }
     const { data } = await worker.recognize(c, {}, { blocks: true });
@@ -97,7 +97,7 @@ async function createTesseract(cfg: OcrConfig, onProgress?: (p: OcrProgress) => 
     async recognizeImage(bytes, mime) {
       page = 1;
       onProgress?.({ stage: "rendering", progress: 0, page, engine: "tesseract" });
-      return recognize(await renderImage(bytes, mime, cfg));
+      return recognize(await renderImage(bytes, mime, cfg), "photo");
     },
     terminate: async () => {
       await worker.terminate();

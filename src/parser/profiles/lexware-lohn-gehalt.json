@@ -1,0 +1,72 @@
+{
+  "schemaVersion": 1,
+  "id": "lexware-lohn-gehalt",
+  "name": "Lexware lohn+gehalt",
+  "checked": false,
+  "verified": false,
+  "asOf": "2026-10-27",
+  "source": "Layout features of a 'Abrechnung der Brutto-Netto-Bezüge' payslip with the footer 'Lohn+Gehalt pro'; profile built from layout notes only, no real values",
+  "note": "Lohnart | Bezeichnung | bezahlte Menge | Faktor | %-Zuschlag | St* | SV* | GB* | Betrag; totals as label cells with the value below; 'Aufgelaufene Jahreswerte' (year to date) block on the left. Not yet checked against a text-layer PDF: values are flagged when unclear.",
+  "markers": [
+    {
+      "pattern": "lohn\\+gehalt\\s*pro",
+      "flags": "i",
+      "weight": 10
+    },
+    {
+      "pattern": "abrechnung der brutto-?\\s*netto-?\\s*bezüge",
+      "flags": "i",
+      "weight": 4
+    },
+    {
+      "pattern": "aufgelaufene jahreswerte",
+      "flags": "i",
+      "weight": 3
+    },
+    {
+      "pattern": "nettoentgelt",
+      "flags": "i",
+      "weight": 1
+    }
+  ],
+  "headers": {
+    "qty": [
+      "Menge",
+      "bezahlte Menge"
+    ],
+    "rate": [
+      "Faktor"
+    ],
+    "zuab": [
+      "%-Zuschlag"
+    ],
+    "flag": [
+      "St*",
+      "SV*",
+      "GB*"
+    ],
+    "amount": [
+      "Betrag"
+    ]
+  },
+  "totals": {
+    "netto": [
+      "^nettoentgelt$"
+    ],
+    "steuerbrutto": [
+      "^steuer\\s*-\\s*brutto$"
+    ],
+    "svbrutto": [
+      "^kv\\s*-\\s*brutto$"
+    ]
+  },
+  "synonyms": [
+    {
+      "category": "base",
+      "match": "^lohn$"
+    }
+  ],
+  "ytdHeadings": [
+    "^aufgelaufene\\s+jahreswerte"
+  ]
+}

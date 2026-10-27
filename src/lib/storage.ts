@@ -16,6 +16,9 @@ export const MIGRATIONS: Record<number, (d: Json) => Json> = {
     settings: { ...defaultSettings(), ...(rest.settings && typeof rest.settings === "object" ? rest.settings : {}) },
     labelMap: rest.labelMap ?? {},
   }),
+  // 2 -> 3: payslips may carry payType / abzuege / netto / auszahlung (all optional): saved
+  // payslips stay as they are and are treated as hourly, as before
+  2: (d) => ({ ...d, schemaVersion: 3 }),
 };
 
 export function schemaVersionOf(d: unknown): number | null {
