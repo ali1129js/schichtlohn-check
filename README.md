@@ -6,11 +6,7 @@ Live: [schichtlohn-check.vercel.app](https://schichtlohn-check.vercel.app)
 
 ## What I learned
 
-- Money needs its own rounding. `cents()` in `src/lib/calc.ts` rounds half up with a small epsilon so 2.175 becomes 2.18 like on a real payslip, not 2.17 from floating point.
-- Saved data outlives the code. `src/lib/storage.ts` stores a `schemaVersion` and runs step-by-step migrations, and corrupt data is backed up instead of wiped.
-- Rates belong in data, not code. Tariff, §3b and holiday values live in zod-validated JSON with a source, a date and a `verified` flag, and unconfirmed values show a badge in the UI.
-- Privacy can be tested. `tests/csp.test.ts` fails the build if any third-party origin appears in the CSP or the OCR config, and the leak guard runs before every test and build.
-- OCR is a fallback, not a source of truth. The importer uses the PDF text layer when it looks sane, only then renders and OCRs the page, and never marks OCR values as certain.
+See [docs/LEARN.md](docs/LEARN.md) for how tariff data is stored as Zod JSON, how storage migrations never wipe saved shifts, and why OCR values need an explicit "I have checked", with pointers at the files.
 
 Shift pay checker for Zeitarbeit (temporary agency) shift workers in chemical/pharma plants.
 Enter your shifts, see the gross pay they should produce (base wage, Branchenzuschlag, night/Sunday/
@@ -39,8 +35,8 @@ typed in or imported from the payslip PDF.
   - **Granite Docling (document AI, WebGPU)**: experimental, OFF by default, switched on only in
     Settings after a consent prompt showing the ~264 MB size. In this version it is an interface stub
     and falls back to Tesseract (see `docs/VLM-ENGINE.md`).
-  OCR values are never marked "sicher": the UI shows the engine, a Text/OCR source per field, the
-  word confidence, a warning banner, and requires an explicit "I have checked" before applying.
+    OCR values are never marked "sicher": the UI shows the engine, a Text/OCR source per field, the
+    word confidence, a warning banner, and requires an explicit "I have checked" before applying.
 - "Try sample" loads a made-up payslip (Max Beispiel, Musterzeit Personal GmbH, Beispiel Pharma AG).
 - **Holidays follow the workplace state** (all 16 Bundesländer, default Berlin), not the home address.
   Tariff rates are nationwide, with no Ost/West difference.
@@ -76,15 +72,15 @@ Every default lives in zod-validated data files (`src/rules/tariffs.json`, `s3b.
 with its source, an "as of" date and `verified`; `src/rules/defaults.ts` loads them.
 Values marked `verified: false` show an **unconfirmed** badge in the UI.
 
-| Value | Status | Source |
-|---|---|---|
-| ETV DGB/GVP hourly tables (01.01.2026, 01.09.2026) | verified | DGB PDF of the Entgelttarifvertrag |
-| ETV table from 01.04.2027 | verified (GVP website, not the DGB PDF) | personaldienstleister.de |
-| 35 h week, night 23-6 h, night 25 %, Sunday 50 %, holiday 100 % (maximums), Mehrarbeit 25 % above +15 %, highest surcharge only | verified | MTV DGB/GVP §§ 3, 6 (IG Metall Tarifsammlung Leiharbeit 2026/2027) |
-| § 3b EStG caps (25/40/50/125/150 %, Grundlohn max 50 €), Oster-/Pfingstsonntag = holiday (R 3b LStR), SV-free up to 25 € (§ 1 SvEV) | verified | gesetze-im-internet.de, Lohnsteuer-Handbuch 2026 |
-| Branchenzuschlag Chemie steps (15/20/30/45/53/67 % …) | **unconfirmed** | TV BZ Chemie copy hosted by an agency |
-| Surcharges on base + BZ, overtime on base + BZ, base pay on worked hours | **unconfirmed** | agencies handle this differently |
-| Shift presets F/S/N | not tariff values | editable |
+| Value                                                                                                                               | Status                                  | Source                                                             |
+| ----------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------- | ------------------------------------------------------------------ |
+| ETV DGB/GVP hourly tables (01.01.2026, 01.09.2026)                                                                                  | verified                                | DGB PDF of the Entgelttarifvertrag                                 |
+| ETV table from 01.04.2027                                                                                                           | verified (GVP website, not the DGB PDF) | personaldienstleister.de                                           |
+| 35 h week, night 23-6 h, night 25 %, Sunday 50 %, holiday 100 % (maximums), Mehrarbeit 25 % above +15 %, highest surcharge only     | verified                                | MTV DGB/GVP §§ 3, 6 (IG Metall Tarifsammlung Leiharbeit 2026/2027) |
+| § 3b EStG caps (25/40/50/125/150 %, Grundlohn max 50 €), Oster-/Pfingstsonntag = holiday (R 3b LStR), SV-free up to 25 € (§ 1 SvEV) | verified                                | gesetze-im-internet.de, Lohnsteuer-Handbuch 2026                   |
+| Branchenzuschlag Chemie steps (15/20/30/45/53/67 % …)                                                                               | **unconfirmed**                         | TV BZ Chemie copy hosted by an agency                              |
+| Surcharges on base + BZ, overtime on base + BZ, base pay on worked hours                                                            | **unconfirmed**                         | agencies handle this differently                                   |
+| Shift presets F/S/N                                                                                                                 | not tariff values                       | editable                                                           |
 
 Public holidays: statewide statutory holidays for all 16 states (`src/rules/holidays.json`). Local
 holidays (Augsburger Friedensfest, Fronleichnam in parts of Sachsen/Thüringen, Mariä Himmelfahrt in
