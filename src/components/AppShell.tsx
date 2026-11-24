@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import { useData } from "@/state/DataContext";
+import { MotionToggle } from "./MotionToggle";
 import { ThemeButton } from "./ThemePicker";
 
 export type Tab = "shifts" | "pay" | "payslip" | "settings" | "data";
@@ -35,7 +36,10 @@ export function AppShell({ tab, onTab, children }: { tab: Tab; onTab: (t: Tab) =
             <small>Zeitarbeit · Chemie/Pharma · gross pay check</small>
           </a>
           <span className="spacer" />
-          <ThemeButton />
+          <div className="theme-tools">
+            <ThemeButton />
+            <MotionToggle />
+          </div>
         </div>
         <nav className="nav" aria-label="Main navigation">
           {TABS.map((t) => (

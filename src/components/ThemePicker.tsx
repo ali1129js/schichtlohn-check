@@ -3,9 +3,9 @@ import { THEMES, type Theme } from "@/lib/theme";
 import { useTheme } from "@/state/ThemeContext";
 
 const SWATCH: Record<Theme, [string, string]> = {
-  light: ["#f4f7f9", "#ffffff"],
-  "dark-blue": ["#0b1a2e", "#12263f"],
-  "dark-grey": ["#121212", "#1e1e1e"],
+  khaki: ["#D8CDAE", "#EBE4D0"],
+  graphite: ["#1E2329", "#2A313A"],
+  midnight: ["#1B1428", "#2A2238"],
 };
 
 /** Radio group of the three themes. */

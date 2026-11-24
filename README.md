@@ -2,7 +2,9 @@
 
 Live: [schichtlohn-check.vercel.app](https://schichtlohn-check.vercel.app)
 
-![Schichtlohn-Check checking the made-up sample payslip](docs/screenshot.png)
+![Schichtlohn-Check checking the made-up sample payslip, in Khaki](docs/screenshot.png)
+
+The app uses the gloss Khaki, Graphite and Midnight themes. Motion is off by default; the toggle next to the theme switch turns on a slow background drift, and `prefers-reduced-motion` keeps it static.
 
 ## What I learned
 

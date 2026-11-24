@@ -3,19 +3,26 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-    <meta name="theme-color" content="#10384f" />
+    <meta name="theme-color" content="#1E2329" />
     <meta name="description" content="Shift pay checker for Zeitarbeit shift workers: surcharges, § 3b, payslip compare. Data stays on your device." />
     <link rel="icon" href="./icon.svg" type="image/svg+xml" />
     <title>Schichtlohn-Check</title>
     <script>
-      /* Apply the saved theme before first paint (mirrors resolveTheme in src/lib/theme.ts). */
+      /* Apply the saved theme and motion before first paint (mirrors src/lib/theme.ts). */
       (function () {
-        var colors = { light: "#10384f", "dark-blue": "#07121f", "dark-grey": "#181818" };
+        var colors = { khaki: "#1E2329", graphite: "#161A20", midnight: "#140F1E" };
+        var legacy = { light: "khaki", "dark-blue": "midnight", "dark-grey": "graphite" };
         var t = null;
         try { t = JSON.parse(localStorage.getItem("schichtlohn.theme.v1") || "null"); } catch (e) {}
-        if (!colors.hasOwnProperty(t)) t = window.matchMedia && matchMedia("(prefers-color-scheme: dark)").matches ? "dark-blue" : "light";
+        if (legacy[t]) t = legacy[t];
+        if (!colors.hasOwnProperty(t)) t = window.matchMedia && matchMedia("(prefers-color-scheme: dark)").matches ? "graphite" : "khaki";
         document.documentElement.dataset.theme = t;
+        document.documentElement.style.colorScheme = t === "khaki" ? "light" : "dark";
         document.querySelector('meta[name="theme-color"]').setAttribute("content", colors[t]);
+        var motion = "static";
+        try { if (localStorage.getItem("schichtlohn.motion.v1") === "animated") motion = "animated"; } catch (e) {}
+        if (window.matchMedia && matchMedia("(prefers-reduced-motion: reduce)").matches) motion = "static";
+        document.documentElement.dataset.motion = motion;
       })();
     </script>
   </head>
