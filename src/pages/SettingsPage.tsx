@@ -3,7 +3,7 @@ import type { ReactNode } from "react";
 import { RuleBadge } from "@/components/RuleBadge";
 import { rates } from "@/lib/calc";
 import { num2, todayISO } from "@/lib/format";
-import { REGIONS } from "@/lib/holidays";
+import { LOCAL_HOLIDAYS, REGIONS, type LocalHolidayId } from "@/lib/holidays";
 import { defaultSettings, SettingsSchema, type Settings } from "@/lib/model";
 import {
   BASE_HOURS_MODE,
@@ -176,6 +176,44 @@ export function SettingsPage() {
             ))}
           </select>
         </Field>
+        {LOCAL_HOLIDAYS.filter((h) => h.region === st.region).map((h) => {
+          const on = st.localHolidays.includes(h.id);
+          const toggle = (checked: boolean) =>
+            update({
+              localHolidays: checked
+                ? (Array.from(new Set([...st.localHolidays, h.id])) as LocalHolidayId[])
+                : st.localHolidays.filter((id) => id !== h.id),
+            });
+          return (
+            <Field
+              key={h.id}
+              label={h.name}
+              htmlFor={`local-holiday-${h.id}`}
+              hint={
+                <>
+                  {h.area} Source: {h.source} (as of {h.asOf.replace(/(\d{4})-(\d{2})-(\d{2})/, "$3.$2.$1")}).
+                </>
+              }
+            >
+              <label className="inline-label">
+                <input
+                  id={`local-holiday-${h.id}`}
+                  type="checkbox"
+                  checked={on}
+                  onChange={(e) => toggle(e.target.checked)}
+                />{" "}
+                Enable this local holiday
+              </label>
+            </Field>
+          );
+        })}
+        {LOCAL_HOLIDAYS.some((h) => h.region === st.region) ? (
+          <p className="small muted">
+            These days are statutory only in part of the state. Enable them if your workplace is in the listed area.
+          </p>
+        ) : (
+          <p className="small muted">This state has no optional local holidays in the list.</p>
+        )}
       </section>
 
       <section className="card stack">

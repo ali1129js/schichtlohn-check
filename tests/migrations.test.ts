@@ -84,4 +84,14 @@ describe("saved data migrations", () => {
     expect(kv.data[DATA_KEY]).toBe(raw);
     if (!r.ok) expect(kv.data[r.backupKey]).toBe(raw);
   });
+
+  it("current-schema data without localHolidays loads with an empty list (Berlin unchanged)", () => {
+    const current = loadData(memoryKV({ [DATA_KEY]: JSON.stringify(V1) })).data;
+    const { localHolidays: _drop, ...settingsWithout } = current.settings;
+    const raw = JSON.stringify({ ...current, settings: settingsWithout });
+    const r = loadData(memoryKV({ [DATA_KEY]: raw }));
+    expect(r.ok ? "" : r.reason).toBe("");
+    expect(r.data.settings.localHolidays).toEqual([]);
+    expect(r.data.settings.region).toBe("BE");
+  });
 });

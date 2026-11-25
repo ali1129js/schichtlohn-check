@@ -65,7 +65,7 @@ export function ShiftsPage({ month, onMonth }: { month: string; onMonth: (m: str
           ))}
           {cells.map((d, i) => {
             if (!d) return <div key={`e${i}`} className="cal-empty" aria-hidden="true" />;
-            const hol = holidayName(d, st.region);
+            const hol = holidayName(d, st.region, st.localHolidays);
             const shifts = byDate.get(d) ?? [];
             const isSun = weekday(d) === 0;
             return (
@@ -100,7 +100,7 @@ export function ShiftsPage({ month, onMonth }: { month: string; onMonth: (m: str
           <p className="eyebrow">Selected day</p>
           <h3>
             {LONG_DATE(sel)}
-            {holidayName(sel, st.region) && <span className="badge badge--green" style={{ marginLeft: 8 }}>{holidayName(sel, st.region)}</span>}
+            {holidayName(sel, st.region, st.localHolidays) && <span className="badge badge--green" style={{ marginLeft: 8 }}>{holidayName(sel, st.region, st.localHolidays)}</span>}
           </h3>
         </div>
         <div className="row">

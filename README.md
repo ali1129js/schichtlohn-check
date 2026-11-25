@@ -84,9 +84,11 @@ Values marked `verified: false` show an **unconfirmed** badge in the UI.
 | Surcharges on base + BZ, overtime on base + BZ, base pay on worked hours                                                            | **unconfirmed**                         | agencies handle this differently                                   |
 | Shift presets F/S/N                                                                                                                 | not tariff values                       | editable                                                           |
 
-Public holidays: statewide statutory holidays for all 16 states (`src/rules/holidays.json`). Local
-holidays (Augsburger Friedensfest, Fronleichnam in parts of Sachsen/Thüringen, Mariä Himmelfahrt in
-Catholic Bavarian communities) are not included.
+Public holidays: statewide statutory holidays for all 16 states (`src/rules/holidays.json`). Optional
+local holidays (Augsburger Friedensfest in the city of Augsburg, Fronleichnam in the documented parts
+of Sachsen and Thüringen, Mariä Himmelfahrt in Catholic communities of Bayern) can be enabled in
+Settings. Each local entry has a source and an "as of" date in that file. They stay off by default,
+so the Berlin default is unchanged.
 
 ## Open questions
 

@@ -54,6 +54,20 @@ describe("UI smoke (server render)", () => {
     expect(html).toContain("Tariff rates are nationwide.");
     expect(html).toContain("Ost/West difference is gone");
     expect(html).toContain("unconfirmed");
+    expect(html).toContain("This state has no optional local holidays in the list.");
+    expect(html).not.toContain("Augsburger Friedensfest");
+    expect(html).not.toContain("id=\"local-holiday-");
+  });
+  it("settings: Bayern can opt into documented local holidays, off by default", () => {
+    const stored = JSON.stringify({ ...data, settings: settings({ region: "BY" }) });
+    const html = render("#settings", stored);
+    expect(html).toContain("Augsburger Friedensfest");
+    expect(html).toContain("Mariä Himmelfahrt");
+    expect(html).toContain("Enable this local holiday");
+    expect(html).toContain("Art. 1 Abs. 2 BayFTG");
+    expect(html).toMatch(/id="local-holiday-augsburg-friedensfest"/);
+    expect(html).not.toMatch(/id="local-holiday-augsburg-friedensfest"[^>]*checked/);
+    expect(html).toContain("These days are statutory only in part of the state");
   });
   it("shows the corruption alert and keeps a backup when stored data is broken", () => {
     expect(render("#shifts", "{broken")).toContain("Saved data could not be read");

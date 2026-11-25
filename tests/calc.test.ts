@@ -292,3 +292,12 @@ describe("defaults confirmed against a real zvoove payslip", () => {
     expect(parsed).toMatchObject({ bzMode: "pct", bzHours: "paid", azkPayoutBase: "base", surchargeRounding: "amount" });
   });
 });
+
+describe("optional local holidays in pay calculation", () => {
+  it("Fronleichnam 2026 in Sachsen is holiday work only when the local option is on", () => {
+    const s = [shift("2026-06-04", "06:00", "14:00")];
+    expect(H(monthHours(s, "2026-06", settings({ region: "SN" })).holiday)).toBe(0);
+    expect(H(monthHours(s, "2026-06", settings({ region: "SN", localHolidays: ["sn-fronleichnam"] })).holiday)).toBe(8);
+    expect(H(monthHours(s, "2026-06", settings({ region: "BE", localHolidays: ["sn-fronleichnam"] })).holiday)).toBe(0);
+  });
+});

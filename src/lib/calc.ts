@@ -1,5 +1,5 @@
 import { S3B } from "@/rules/defaults";
-import { easterSunday, holidayName, type Region } from "./holidays";
+import { easterSunday, holidayName, type LocalHolidayId, type Region } from "./holidays";
 import type { Settings, Shift } from "./model";
 import { addDays, berlinToUtc, MIN, parseHHMM, utcToBerlin, weekday, type ISODate } from "./time";
 
@@ -61,14 +61,15 @@ export interface ClassifyOptions {
   nightStart: string;
   nightEnd: string;
   eveAsHoliday: boolean;
+  localHolidays?: readonly LocalHolidayId[];
 }
 
 /** Per-day § 3b rate (Sunday/holiday part only, not night). */
-export function s3bDayPct(date: ISODate, minute: number, region: Region): number {
+export function s3bDayPct(date: ISODate, minute: number, region: Region, localHolidays: readonly LocalHolidayId[] = []): number {
   const md = date.slice(5);
   if (md === "12-25" || md === "12-26" || md === "05-01") return S3B.specialPct;
   if (md === "12-24" && minute >= 14 * 60) return S3B.specialPct;
-  if (holidayName(date, region)) return S3B.holidayPct;
+  if (holidayName(date, region, localHolidays)) return S3B.holidayPct;
   // R 3b (3) Satz 4 LStR: Oster- and Pfingstsonntag count as holidays for § 3b in every state,
   // even where the state law does not list them (only Brandenburg does).
   const easter = easterSunday(+date.slice(0, 4));
@@ -91,14 +92,14 @@ export function* workedMinutes(s: Shift, o: ClassifyOptions): Generator<MinuteIn
     if (iv.breaks.some(([a, b]) => t >= a && t < b)) continue;
     const { date, minute } = utcToBerlin(t);
     const md = date.slice(5);
-    const isHoliday = holidayName(date, o.region) !== null;
+    const isHoliday = holidayName(date, o.region, o.localHolidays ?? []) !== null;
     const eve = o.eveAsHoliday && (md === "12-24" || md === "12-31") && minute >= 14 * 60;
     // § 3b: work "begun before midnight" = this minute lies on a later date than the shift start
     const startedBefore = date > startDate;
     let night3b = 0;
     if (inWindow(minute, s3bNs, s3bNe)) night3b = startedBefore && minute < s3bEarly ? S3B.nightEarlyPct : S3B.nightPct;
-    let day3b = s3bDayPct(date, minute, o.region);
-    if (startedBefore && minute < s3bEarly) day3b = Math.max(day3b, s3bDayPct(addDays(date, -1), 24 * 60 - 1, o.region));
+    let day3b = s3bDayPct(date, minute, o.region, o.localHolidays ?? []);
+    if (startedBefore && minute < s3bEarly) day3b = Math.max(day3b, s3bDayPct(addDays(date, -1), 24 * 60 - 1, o.region, o.localHolidays ?? []));
     yield {
       date,
       minute,

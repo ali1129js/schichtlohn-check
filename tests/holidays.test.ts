@@ -98,3 +98,47 @@ describe("all 16 states", () => {
     expect(holidayName("2026-10-31", "BE")).toBeNull();
   });
 });
+
+import { HOLIDAY_DATA, LOCAL_HOLIDAYS, LOCAL_HOLIDAY_IDS } from "@/lib/holidays";
+
+describe("optional local holidays", () => {
+  it("every local holiday has a source and an as-of date", () => {
+    expect(HOLIDAY_DATA.schemaVersion).toBe(2);
+    expect(LOCAL_HOLIDAYS.map((h) => h.id)).toEqual([...LOCAL_HOLIDAY_IDS]);
+    for (const h of LOCAL_HOLIDAYS) {
+      expect(h.source.length).toBeGreaterThan(10);
+      expect(h.asOf).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+      expect(h.area.length).toBeGreaterThan(3);
+    }
+  });
+
+  it("Berlin defaults stay unchanged when local holidays are off or enabled for other states", () => {
+    const berlin = holidays(2026, "BE").map((h) => h.date);
+    expect(holidays(2026, "BE", [...LOCAL_HOLIDAY_IDS]).map((h) => h.date)).toEqual(berlin);
+    expect(holidayName("2026-08-08", "BE", [...LOCAL_HOLIDAY_IDS])).toBeNull();
+    expect(holidayName("2026-08-15", "BE", [...LOCAL_HOLIDAY_IDS])).toBeNull();
+    expect(holidayName("2026-06-04", "BE", [...LOCAL_HOLIDAY_IDS])).toBeNull();
+  });
+
+  it("Augsburger Friedensfest (8 Aug) is off by default in Bayern and on when enabled", () => {
+    expect(holidayName("2026-08-08", "BY")).toBeNull();
+    expect(holidayName("2026-08-08", "BY", ["augsburg-friedensfest"])).toBe("Augsburger Friedensfest");
+    expect(holidayName("2026-08-08", "BE", ["augsburg-friedensfest"])).toBeNull();
+  });
+
+  it("Mariä Himmelfahrt (15 Aug) is off by default in Bayern, statewide in Saarland, and on in Bayern when enabled", () => {
+    expect(holidayName("2026-08-15", "BY")).toBeNull();
+    expect(holidayName("2026-08-15", "SL")).toBe("Mariä Himmelfahrt");
+    expect(holidayName("2026-08-15", "BY", ["by-mariae-himmelfahrt"])).toBe("Mariä Himmelfahrt");
+  });
+
+  it("Fronleichnam 2026 (4 June) is off by default in Sachsen and Thüringen and on when that state's option is enabled", () => {
+    expect(holidayName("2026-06-04", "SN")).toBeNull();
+    expect(holidayName("2026-06-04", "TH")).toBeNull();
+    expect(holidayName("2026-06-04", "SN", ["sn-fronleichnam"])).toBe("Fronleichnam");
+    expect(holidayName("2026-06-04", "TH", ["th-fronleichnam"])).toBe("Fronleichnam");
+    expect(holidayName("2026-06-04", "SN", ["th-fronleichnam"])).toBeNull();
+    expect(holidayName("2026-06-04", "TH", ["sn-fronleichnam"])).toBeNull();
+    expect(holidayName("2026-06-04", "NW")).toBe("Fronleichnam");
+  });
+});

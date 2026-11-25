@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { REGION_IDS } from "./holidays";
+import { LOCAL_HOLIDAY_IDS, REGION_IDS } from "./holidays";
 import {
   AZK_PAYOUT_BASE,
   BASE_HOURS_MODE,
@@ -42,6 +42,8 @@ export const SettingsSchema = z.object({
   weeklyHours: z.number().min(1).max(60),
   /** state of the WORKPLACE: decides public holidays */
   region: z.enum(REGION_IDS),
+  /** optional local holidays that apply only in part of the workplace state; off by default */
+  localHolidays: z.array(z.enum(LOCAL_HOLIDAY_IDS)).default([]),
   nightStart: HHMM,
   nightEnd: HHMM,
   nightPct: pct,
@@ -158,6 +160,7 @@ export function defaultSettings(today = new Date().toISOString().slice(0, 10)): 
     surchargeRounding: SURCHARGE_ROUNDING.value,
     weeklyHours: WEEKLY_HOURS.value,
     region: "BE",
+    localHolidays: [],
     nightStart: NIGHT_WINDOW.value.start,
     nightEnd: NIGHT_WINDOW.value.end,
     nightPct: NIGHT_PCT.value,

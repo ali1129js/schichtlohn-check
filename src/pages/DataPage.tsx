@@ -82,7 +82,7 @@ export function DataPage({ month }: { month: string }) {
         </h3>
         <p className="small muted">Work location decides holidays. {HOLIDAY_NOTE}</p>
         <ul className="small list">
-          {holidays(year, data.settings.region).map((h) => (
+          {holidays(year, data.settings.region, data.settings.localHolidays).map((h) => (
             <li key={h.date}>
               {new Date(`${h.date}T12:00:00Z`).toLocaleDateString("de-DE", { weekday: "short", day: "2-digit", month: "2-digit", timeZone: "UTC" })} {h.name}
             </li>

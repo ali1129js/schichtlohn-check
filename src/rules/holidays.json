@@ -1,9 +1,9 @@
 {
-  "schemaVersion": 1,
-  "asOf": "2026-10-27",
-  "source": "Feiertagsgesetze of the 16 states (statewide statutory holidays only)",
+  "schemaVersion": 2,
+  "asOf": "2026-11-25",
+  "source": "Feiertagsgesetze of the 16 states (statewide statutory holidays), plus optional local holidays documented below",
   "verified": true,
-  "note": "Statewide holidays only. Local ones (Augsburger Friedensfest, Fronleichnam in parts of Sachsen/Thüringen, Mariä Himmelfahrt in Catholic communities of Bayern) are not included. Dates: fixed MM-DD, or days after Easter Sunday, or a special rule. The first entry for a date wins.",
+  "note": "Statewide holidays are always applied. Local ones are off by default and can be enabled in Settings when they apply to the workplace: Augsburger Friedensfest (Stadt Augsburg), Fronleichnam in listed parts of Sachsen and Thüringen, and Mariä Himmelfahrt in Catholic communities of Bayern. Dates: fixed MM-DD, or days after Easter Sunday, or a special rule. The first entry for a date wins.",
   "holidays": [
     { "name": "Neujahr", "fixed": "01-01", "regions": "all" },
     { "name": "Heilige Drei Könige", "fixed": "01-06", "regions": ["BW", "BY", "ST"] },
@@ -28,5 +28,11 @@
     { "name": "Buß- und Bettag", "special": "bussUndBettag", "regions": ["SN"] },
     { "name": "1. Weihnachtstag", "fixed": "12-25", "regions": "all" },
     { "name": "2. Weihnachtstag", "fixed": "12-26", "regions": "all" }
+  ],
+  "localHolidays": [
+    { "id": "augsburg-friedensfest", "name": "Augsburger Friedensfest", "fixed": "08-08", "region": "BY", "area": "Stadt Augsburg", "source": "Art. 1 Abs. 2 BayFTG (Gesetz über den Schutz der Sonn- und Feiertage, Fassung 21.05.1980, text gilt ab 01.08.2013); https://www.gesetze-bayern.de/Content/Document/BayFTG-1", "asOf": "2026-11-25", "note": "Statutory only in the city of Augsburg." },
+    { "id": "by-mariae-himmelfahrt", "name": "Mariä Himmelfahrt", "fixed": "08-15", "region": "BY", "area": "Gemeinden with a predominantly Catholic population, as determined by the Bayerisches Landesamt für Statistik after the last census (currently Zensus 2022). Check the official list before enabling.", "source": "Art. 1 Abs. 1 Nr. 2 and Abs. 3 BayFTG; Bayerisches Landesamt für Statistik, Zensus 2022 (first used for 15.08.2025; unchanged for 2026 per PM 217/2026 of 13.08.2026); https://www.statistik.bayern.de/statistik/gebiet_bevoelkerung/zensus/himmelfahrt/", "asOf": "2026-08-13" },
+    { "id": "sn-fronleichnam", "name": "Fronleichnam", "easter": 60, "region": "SN", "area": "Municipalities named in the annex to the FronleichnamsVO in the former Landkreise Bautzen, Hoyerswerda and Kamenz; after a merger, only that former municipality as a Gemeindeteil (VO as of 10.06.1995).", "source": "§ 1 Abs. 1 SächsSFG (rechtsbereinigt Stand 07.05.2025); Verordnung des Sächsischen Staatsministeriums des Innern über den regionalen Feiertag Fronleichnam (FronleichnamsVO) vom 04.05.1993, geändert 30.05.1995, Stand 10.06.1995; https://www.revosax.sachsen.de/vorschrift/4142", "asOf": "2025-05-07" },
+    { "id": "th-fronleichnam", "name": "Fronleichnam", "easter": 60, "region": "TH", "area": "Parts of Thuringia where Corpus Christi was already a statutory holiday in 1994 (notably parts of Eichsfeld and the Rhön/Geisa area), until a regulation under § 2 Abs. 2 is issued. Confirm the workplace is in one of those areas before enabling.", "source": "§ 2 Abs. 2 and § 10 Abs. 1 Thüringer Feier- und Gedenktagsgesetz (ThürFGtG) vom 21.12.1994, last amended 26.03.2019 (GVBl. S. 22)", "asOf": "2019-03-26" }
   ]
 }
