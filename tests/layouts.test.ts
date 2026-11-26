@@ -5,7 +5,7 @@ import { detectProfile, PROFILES } from "@/import/profiles";
 import { CATEGORIES } from "@/import/categories";
 import { PROFILE_DATA } from "@/parser";
 import { ProfileSchema } from "@/parser/schema";
-import { datevItems, zvooveItems } from "./fixtures/synthetic";
+import { datevFullItems, datevItems, zvooveItems } from "./fixtures/synthetic";
 
 const zv = () => parsePayslipLines(textLinesFromItems(zvooveItems()));
 
@@ -87,5 +87,33 @@ describe("synthetic DATEV payslip (basic generic coverage)", () => {
     expect(r.lines.nacht).toMatchObject({ hours: 20, rate: 4.02, amount: 80.4 });
     expect(r.summary.gesamtbrutto?.value).toBe(2665.2);
     expect(r.other.map((o) => o.label)).toContain("Werkzeuggeld");
+  });
+});
+
+describe("synthetic DATEV payslip, full wage-type set (SL-05)", () => {
+  const r = () => parsePayslipLines(textLinesFromItems(datevFullItems()));
+  it("pins every parsed line, the Faktor column and the month", () => {
+    const x = r();
+    expect(x.profile).toMatchObject({ id: "datev", checked: false });
+    expect(x.table).toBe("columns");
+    expect(x.month?.value).toBe("2026-10");
+    expect(x.lines.grundlohn).toMatchObject({ hours: 152, rate: 15.5, amount: 2356, confidence: "sicher" });
+    expect(x.lines.nacht).toMatchObject({ hours: 16, rate: 3.9, amount: 62.4, confidence: "sicher" });
+    expect(x.lines.sonntag).toMatchObject({ hours: 8, rate: 7.75, amount: 62 });
+    expect(x.lines.feiertag).toMatchObject({ hours: 8, rate: 15.5, amount: 124 });
+    expect(x.lines.mehrarbeit).toMatchObject({ hours: 6, rate: 15.5, amount: 93 });
+    expect(x.lines.fahrgeld).toMatchObject({ amount: 30 });
+    expect(x.other).toEqual([]);
+  });
+  it("reads all three totals and they add up to the lines", () => {
+    const x = r();
+    expect(x.summary.gesamtbrutto?.value).toBe(2727.4);
+    expect(x.summary.steuerbrutto?.value).toBe(2697.4);
+    expect(x.summary.svbrutto?.value).toBe(2697.4);
+    const sum = Object.values(x.lines).reduce((a, l) => a + (l?.amount ?? 0), 0);
+    expect(Math.round(sum * 100) / 100).toBe(x.summary.gesamtbrutto?.value);
+  });
+  it("stays flagged as not confirmed against a live slip", () => {
+    expect(PROFILES.find((p) => p.id === "datev")?.checked).toBe(false);
   });
 });

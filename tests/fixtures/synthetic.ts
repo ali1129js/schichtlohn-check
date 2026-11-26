@@ -162,3 +162,34 @@ export function lohnGehaltProItems(): Item[] {
   p.down(30).t("Lohn+Gehalt pro", 40).t("Seite 1/1", 500);
   return p.items;
 }
+
+/**
+ * DATEV LODAS style, second synthetic fixture (SL-05): more wage types (Sunday, holiday, overtime,
+ * holiday pay, travel) plus a Jahressummen-free Netto block. Made-up person and numbers.
+ */
+export function datevFullItems(): Item[] {
+  const p = new Page();
+  p.t("Muster Personal GmbH", 40).r("DATEV LODAS", 550);
+  p.down(20).t("Abrechnung der Brutto/Netto-Bezüge für Oktober 2026", 40);
+  p.down().t("Erika Beispiel", 40);
+  p.down(24).t("Lohnart", 40).t("Bezeichnung", 90).r("Menge", 380).r("Faktor", 450).r("Betrag", 550);
+  const rows: [string, string, string, string, string][] = [
+    ["2000", "Std.Lohn", "152,00", "15,50", "2.356,00"],
+    ["2300", "Nachtzuschlag 25%", "16,00", "3,90", "62,40"],
+    ["2400", "Sonntagszuschlag 50%", "8,00", "7,75", "62,00"],
+    ["2500", "Feiertagszuschlag 100%", "8,00", "15,50", "124,00"],
+    ["2600", "Mehrarbeit", "6,00", "15,50", "93,00"],
+    ["2900", "Fahrgeld", "", "", "30,00"],
+  ];
+  for (const [la, bez, menge, faktor, betrag] of rows) {
+    p.down().t(la, 40).t(bez, 90);
+    if (menge) p.r(menge, 380);
+    if (faktor) p.r(faktor, 450);
+    p.r(betrag, 550);
+  }
+  p.down(24).t("Gesamt-Brutto", 40).r("2.727,40", 550);
+  p.down().t("Steuer-Brutto", 40).r("2.697,40", 550);
+  p.down().t("SV-Brutto", 40).r("2.697,40", 550);
+  return p.items;
+}
+

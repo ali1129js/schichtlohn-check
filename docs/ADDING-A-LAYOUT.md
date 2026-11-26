@@ -35,6 +35,7 @@ A new layout needs three files and no code change:
    Profiles shipped: `zvoove`, `datev`, `landwehr`, `lexware-lohn-gehalt` (footer "Lohn+Gehalt pro",
    "Abrechnung der Brutto-Netto-Bezüge") and `lohn-gehaltsabrechnung-mmyyyy` ("Lohn- und
    Gehaltsabrechnung MM.YYYY" with a Jahressummen column). Only `zvoove` is `checked`.
+   DATEV has two synthetic fixtures (datevItems, datevFullItems): that pins the parsing, it does not make the profile checked.
 
 2. **Fixture** in `tests/fixtures/synthetic.ts`: a function returning pdf.js-like text items for a
    made-up person (never real data; the leak guard runs before every test).

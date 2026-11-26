@@ -106,7 +106,7 @@ overtime on the base rate only, and "EG 2" (the GVP table has 2a/2b).
 
 ## Known gaps
 
-- DATEV, Landwehr and the two layouts added in 0.3.0 are built from public examples and synthetic fixtures, not confirmed against real slips.
+- DATEV, Landwehr and the two layouts added in 0.3.0 are built from public examples and synthetic fixtures, not confirmed against real slips. DATEV is now pinned by two synthetic fixtures (basic and full wage-type set, tests/layouts.test.ts): confirmed against a fixture, not against a live slip, and it stays checked: false.
 - HEIC photos open only in browsers that decode HEIC themselves (Safari); elsewhere export a JPG.
 - Phone photos of dense tables (small print, uneven light) still OCR poorly; values are marked "check" or "uncertain".
 - Branchenzuschlag on Urlaub/holiday pay is not confirmed; the night/Sunday overlap rule is marked "likely".
